@@ -1,12 +1,28 @@
 import { Router } from "express";
 
+import {
+    login,
+    logout,
+    register,
+} from "../controllers/auth.controllers";
+
+import { isAuthenticated } from "../middleware/auth.middleware";
+
 const router = Router();
 
-router.post("/register", (req, res) => {
-    return res.status(200).json({
+router.post("/register", register);
+
+router.post("/login", login);
+
+router.post("/logout", logout);
+
+router.get("/me", isAuthenticated, (req, res) => {
+
+    res.json({
         success: true,
-        message: "User registered successfully"
-    })
+        user: (req as any).user,
+    });
+
 });
 
 export default router;
