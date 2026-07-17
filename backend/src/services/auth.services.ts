@@ -23,6 +23,13 @@ export const registerUser = async (
             email,
             password: hashedPassword,
         },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            createdAt: true,
+            updatedAt: true,
+        },
     });
 
     return user;
@@ -48,5 +55,7 @@ export const loginUser = async (
     if (!isMatch)
         throw new Error("Invalid Credentials");
 
-    return user;
+    const { password: _, ...userWithoutPassword } = user;
+
+    return userWithoutPassword as typeof user;
 };

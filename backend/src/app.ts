@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import documentRoutes from "./routes/document.route";
 
 import authRoutes from "./routes/auth.routes";
 
@@ -22,5 +23,7 @@ app.use(helmet());
 app.use(morgan("dev"));
 
 app.use("/api/v1/auth", authRoutes);
+
+app.use("/api/v1/documents", documentRoutes);
 
 export default app;
