@@ -55,26 +55,23 @@ export const updateDocumentService = async(
     title?: string,
     content?: any
 ) => {
-    const existingDocument = await prisma.document.findFirst({
-        where: {
-            id: documentId,
-            ownerId: userId,
+    try {
+        const document = await prisma.document.update({
+            where: {
+                id: documentId,
+                ownerId: userId,
+            },
+            data: {
+                ...(title !== undefined ? { title } : {}),
+                ...(content !== undefined ? { content } : {}),
+            },
+        });
+
+        return document;
+    } catch (error: any) {
+        if (error.code === "P2025") {
+            throw new Error("Document not found or you do not have permission to update it.");
         }
-    });
-
-    if(!existingDocument) {
-        throw new Error("Document not found or you do not have permission to update it.");
+        throw error;
     }
-
-    const document = await prisma.document.update({
-        where: {
-            id: documentId,
-        },
-        data: {
-            ...(title !== undefined ? { title } : {}),
-            ...(content !== undefined ? { content } : {}),
-        },
-    });
-
-    return document;
 };

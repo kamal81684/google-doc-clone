@@ -1,93 +1,103 @@
 "use client";
 
-import { useEffect, useState, useRef, use } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import toast from "react-hot-toast";
 
-import { getDocumentById, Document, updateDocument } from "@/services/document.services";
+import {getDocumentById,updateDocument,} from "@/services/document.services";
+
 import DocumentEditor from "@/components/editor/DocumentEditor";
 
-export default function DocumentPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
-  const [document, setDocument] = useState<Document | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+export default function DocumentPage() {
 
-  useEffect(() => {
-    const fetchDocument = async () => {
-      try {
-        const response = await getDocumentById(id);
-        if (response.success && response.document) {
-          setDocument(response.document);
-        } else {
-          toast.error("Document not found");
-          router.push("/dashboard");
+    const params = useParams();
+    const id = params.id as string;
+
+    const [document, setDocument] = useState<any>(null);
+    const [title, setTitle] = useState("");
+    const [content, setContent] = useState<any>(null);
+    const latestTitle = useRef(title);
+    const latestContent = useRef(content);
+    const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        latestTitle.current = title;
+    }, [title]);
+
+    useEffect(() => {
+        latestContent.current = content;
+    }, [content]);
+
+    useEffect(() => {
+
+        const fetchDocument = async () => {
+
+            const response = await getDocumentById(id);
+
+            setDocument(response.document);
+            setTitle(response.document.title);
+            setContent(response.document.content);
+
+            latestTitle.current = response.document.title;
+            latestContent.current = response.document.content;
+
+        };
+
+        fetchDocument();
+
+    }, [id]);
+
+    const saveDocument = useCallback(async (fields: { title?: string; content?: any }) => {
+        try {
+            await updateDocument(id, fields);
+            toast.success("Document saved");
+        } catch {
+            toast.error("Failed to save document");
         }
-      } catch (error) {
-        toast.error("Failed to load document");
-        router.push("/dashboard");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    }, [id]);
 
-    fetchDocument();
-  }, [id, router]);
+    useEffect(() => {
+        if (!document) return;
 
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, []);
+        if (debounceTimer.current) {
+            clearTimeout(debounceTimer.current);
+        }
 
-  const handleChange = (content: any) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
+        debounceTimer.current = setTimeout(() => {
+            saveDocument({ title: latestTitle.current, content: latestContent.current });
+        }, 1000);
+
+        return () => {
+            if (debounceTimer.current) {
+                clearTimeout(debounceTimer.current);
+            }
+        };
+    }, [title, content, document, saveDocument]);
+
+    if (!document) {
+        return <p>Loading...</p>;
     }
-    saveTimeoutRef.current = setTimeout(async () => {
-      try {
-        await updateDocument(id, { content });
-      } catch (error) {
-        toast.error("Failed to save document");
-      }
-    }, 1000);
-  };
 
-  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p>Loading...</p>
-      </div>
+        <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f1f3f4" }}>
+
+            <div style={{ padding: "12px 24px", background: "#fff", borderBottom: "1px solid #e0e0e0" }}>
+                <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    style={{ fontSize: "24px", fontWeight: "bold", border: "none", outline: "none", width: "100%" }}
+                />
+            </div>
+
+            <div style={{ flex: 1, overflow: "auto", display: "flex", justifyContent: "center", padding: "24px 0" }}>
+                <div style={{ width: "100%", maxWidth: "816px", minHeight: "1056px", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.12)", padding: "96px 72px" }}>
+                    <DocumentEditor
+                        initialContent={content}
+                        onChange={setContent}
+                    />
+                </div>
+            </div>
+
+        </div>
     );
-  }
-
-  if (!document) {
-    return null;
-  }
-
-  return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-zinc-900 mb-4">
-          {document.title}
-        </h1>
-        <div className="text-sm text-zinc-500 mb-8">
-          Document ID: {document.id}
-        </div>
-        <div className="prose prose-zinc max-w-none">
-          <DocumentEditor
-            initialContent={document.content}
-            onChange={handleChange}
-          />
-        </div>
-      </div>
-    </div>
-  );
 }

@@ -119,7 +119,7 @@ export const updateDocument = async (
     try {
         const userId = (req as any).user.id;
 
-        const { id } = req.params;
+        const  {id } = req.params;
         const { title, content } = req.body;
 
         const document = await updateDocumentService(
