@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import toast from "react-hot-toast";
 
-import {getDocumentById,updateDocument,} from "@/services/document.services";
+import {getDocumentById,updateDocument,downloadDocument,} from "@/services/document.services";
 
 import DocumentEditor from "@/components/editor/DocumentEditor";
 
@@ -56,6 +56,23 @@ export default function DocumentPage() {
         }
     }, [id]);
 
+    const handleDownload = useCallback(async (format: "txt" | "pdf") => {
+        try {
+            const blob = await downloadDocument(id, format);
+            const url = window.URL.createObjectURL(blob);
+            const link = window.document.createElement("a");
+            link.href = url;
+            link.download = `${title || "document"}.${format}`;
+            window.document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success(`Downloaded as ${format.toUpperCase()}`);
+        } catch (err: any) {
+            toast.error(err.message || "Download failed");
+        }
+    }, [id, title]);
+
     useEffect(() => {
         if (!document) return;
 
@@ -81,12 +98,24 @@ export default function DocumentPage() {
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f1f3f4" }}>
 
-            <div style={{ padding: "12px 24px", background: "#fff", borderBottom: "1px solid #e0e0e0" }}>
+            <div style={{ padding: "12px 24px", background: "#fff", borderBottom: "1px solid #e0e0e0", display: "flex", alignItems: "center", gap: "12px" }}>
                 <input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    style={{ fontSize: "24px", fontWeight: "bold", border: "none", outline: "none", width: "100%" }}
+                    style={{ fontSize: "24px", fontWeight: "bold", border: "none", outline: "none", flex: 1 }}
                 />
+                <button
+                    onClick={() => handleDownload("txt")}
+                    style={{ padding: "6px 12px", border: "1px solid #ccc", borderRadius: "4px", background: "#fff", cursor: "pointer", fontSize: "14px" }}
+                >
+                    Download TXT
+                </button>
+                <button
+                    onClick={() => handleDownload("pdf")}
+                    style={{ padding: "6px 12px", border: "1px solid #ccc", borderRadius: "4px", background: "#fff", cursor: "pointer", fontSize: "14px" }}
+                >
+                    Download PDF
+                </button>
             </div>
 
             <div style={{ flex: 1, overflow: "auto", display: "flex", justifyContent: "center", padding: "24px 0" }}>

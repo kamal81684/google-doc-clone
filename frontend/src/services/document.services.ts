@@ -43,3 +43,26 @@ export const updateDocument = async (
 
     return response.data;
 };
+
+export const downloadDocument = async (
+    id: string,
+    format: "txt" | "pdf"
+) => {
+    const response = await api.get(
+        `/documents/${id}/download/${format}`,
+        {
+            responseType: "blob",
+        }
+    );
+
+    const contentType = Array.isArray(response.headers["content-type"])
+        ? response.headers["content-type"][0]
+        : response.headers["content-type"];
+    // if (contentType && contentType.includes("application/json")) {
+    //     const text = await (response.data as Blob).text();
+    //     const json = JSON.parse(text);
+    //     throw new Error(json.message || "Download failed");
+    // }
+
+    return response.data;
+};
