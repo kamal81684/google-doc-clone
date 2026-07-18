@@ -56,6 +56,8 @@ export default function DocumentPage() {
         }
     }, [id]);
 
+    const pendingSave = useRef<{ title?: string; content?: any } | null>(null);
+
     const handleDownload = useCallback(async (format: "txt" | "pdf") => {
         try {
             const blob = await downloadDocument(id, format);
@@ -80,16 +82,25 @@ export default function DocumentPage() {
             clearTimeout(debounceTimer.current);
         }
 
+        pendingSave.current = { title: latestTitle.current, content: latestContent.current };
+
         debounceTimer.current = setTimeout(() => {
-            saveDocument({ title: latestTitle.current, content: latestContent.current });
+            if (pendingSave.current) {
+                saveDocument(pendingSave.current);
+                pendingSave.current = null;
+            }
         }, 1000);
 
         return () => {
             if (debounceTimer.current) {
                 clearTimeout(debounceTimer.current);
             }
+            if (pendingSave.current) {
+                updateDocument(id, pendingSave.current);
+                pendingSave.current = null;
+            }
         };
-    }, [title, content, document, saveDocument]);
+    }, [title, content, document, saveDocument, id]);
 
     if (!document) {
         return <p>Loading...</p>;
