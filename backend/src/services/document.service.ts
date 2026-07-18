@@ -22,10 +22,13 @@ export const getDocumentByIdService = async (documentId: string, ownerId: string
     return document;
 };
 
-export const getDocumentsByOwnerService = async (ownerId: string) => {
+export const getDocumentsByOwnerService = async (ownerId: string, search?: string) => {
     const documents = await prisma.document.findMany({
         where: {
             ownerId,
+            ...(search
+                ? { title: { contains: search, mode: "insensitive" as const } }
+                : {}),
         },
         orderBy: {
             updatedAt: "desc",
@@ -56,6 +59,20 @@ export const updateDocumentService = async(
     content?: any
 ) => {
     try {
+        if (title !== undefined) {
+            const existing = await prisma.document.findFirst({
+                where: {
+                    ownerId: userId,
+                    title,
+                    id: { not: documentId },
+                },
+            });
+
+            if (existing) {
+                throw new Error("A document with this name already exists");
+            }
+        }
+
         const document = await prisma.document.update({
             where: {
                 id: documentId,
@@ -71,6 +88,27 @@ export const updateDocumentService = async(
     } catch (error: any) {
         if (error.code === "P2025") {
             throw new Error("Document not found or you do not have permission to update it.");
+        }
+        throw error;
+    }
+};
+
+export const deleteDocumentService = async(
+    documentId: string,
+    userId: string,
+) => {
+    try {
+        const document = await prisma.document.delete({
+            where: {
+                id: documentId,
+                ownerId: userId,
+            },
+        });
+
+        return document;
+    } catch (error: any) {
+        if (error.code === "P2025") {
+            throw new Error("Document not found");
         }
         throw error;
     }

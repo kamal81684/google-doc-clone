@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createDocumentService, getDocumentByIdService, getDocumentsByOwnerService, getUserDocumentsService, updateDocumentService } from "../services/document.service";
+import { createDocumentService, deleteDocumentService, getDocumentByIdService, getDocumentsByOwnerService, getUserDocumentsService, updateDocumentService } from "../services/document.service";
 import PDFDocument from "pdfkit";
 import { extractTextFromTiptap } from "../utils/documentExport";
 
@@ -74,7 +74,7 @@ export const getDocuments = async (
 
         const userId = (req as any).user.id;
 
-        const documents = await getDocumentsByOwnerService(userId);
+        const documents = await getDocumentsByOwnerService(userId, req.query.search as string | undefined);
 
         return res.status(200).json({
             success: true,
@@ -255,6 +255,31 @@ export const downloadDocumentAsPdf = async (
 
     } catch (error: any) {
         return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+export const deleteDocument = async (
+    req: Request,
+    res: Response
+) => {
+    try {
+        const userId = (req as any).user.id;
+
+        const id = req.params.id as string;
+
+        const document = await deleteDocumentService(id, userId);
+
+        return res.status(200).json({
+            success: true,
+            message: "Document deleted successfully",
+            document,
+        });
+
+    } catch (error: any) {
+        return res.status(400).json({
             success: false,
             message: error.message,
         });

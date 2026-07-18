@@ -1,5 +1,5 @@
 import {Router} from "express";
-import {createDocument, getDocumentById, getDocuments, getUserDocuments, updateDocument} from "../controllers/document.controller";
+import {createDocument, deleteDocument, getDocumentById, getDocuments, getUserDocuments, updateDocument} from "../controllers/document.controller";
 import {isAuthenticated} from "../middleware/auth.middleware";
 import {
     downloadDocumentAsTxt,
@@ -28,5 +28,6 @@ router.get(
 
 router.get("/:id", isAuthenticated, getDocumentById);
 router.patch("/:id", isAuthenticated, updateDocument);
+router.delete("/:id", isAuthenticated, deleteDocument);
 
 export default router;
