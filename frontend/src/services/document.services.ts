@@ -19,8 +19,10 @@ export const getDocumentById = async (id: string) => {
     return response.data;
 };
 
-export const getDocuments = async () => {
-    const response = await api.get("/documents");
+export const getDocuments = async (search?: string) => {
+    const response = await api.get("/documents", {
+        params: search ? { search } : undefined,
+    });
     return response.data;
 };
 
@@ -64,5 +66,12 @@ export const downloadDocument = async (
     //     throw new Error(json.message || "Download failed");
     // }
 
+    return response.data;
+};
+
+export const deleteDocument = async (
+    id: string,
+) => {
+    const response = await api.delete(`/documents/${id}`);
     return response.data;
 };

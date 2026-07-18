@@ -20,6 +20,8 @@ export default function DocumentPage() {
     const latestContent = useRef(content);
     const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    const previousTitle = useRef(title);
+
     useEffect(() => {
         latestTitle.current = title;
     }, [title]);
@@ -47,12 +49,15 @@ export default function DocumentPage() {
 
     }, [id]);
 
-    const saveDocument = useCallback(async (fields: { title?: string; content?: any }) => {
+    const saveDocument = useCallback(async (fields: { title?: string; content?: any }): Promise<boolean> => {
         try {
             await updateDocument(id, fields);
             toast.success("Document saved");
-        } catch {
-            toast.error("Failed to save document");
+            return true;
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || "Failed to save document";
+            toast.error(msg);
+            return false;
         }
     }, [id]);
 
@@ -84,10 +89,17 @@ export default function DocumentPage() {
 
         pendingSave.current = { title: latestTitle.current, content: latestContent.current };
 
-        debounceTimer.current = setTimeout(() => {
+        debounceTimer.current = setTimeout(async () => {
             if (pendingSave.current) {
-                saveDocument(pendingSave.current);
+                const fields = pendingSave.current;
                 pendingSave.current = null;
+                const success = await saveDocument(fields);
+                if (success) {
+                    previousTitle.current = latestTitle.current;
+                } else if (fields.title !== undefined) {
+                    setTitle(previousTitle.current);
+                    latestTitle.current = previousTitle.current;
+                }
             }
         }, 1000);
 
