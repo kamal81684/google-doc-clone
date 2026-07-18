@@ -7,8 +7,11 @@ import documentRoutes from "./routes/document.route";
 
 import authRoutes from "./routes/auth.routes";
 
-const app = express();
 
+
+
+
+const app = express();
 app.use(express.json());
 
 app.use(cookieParser());
