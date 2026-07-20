@@ -10,11 +10,13 @@ import Link from "@tiptap/extension-link";
 interface DocumentEditorProps {
     initialContent: any;
     onChange: (content: any) => void;
+    readOnly?: boolean;
 }
 
 export default function DocumentEditor({
     initialContent,
     onChange,
+    readOnly = false,
 }: DocumentEditorProps) {
 
     const [showLinkInput, setShowLinkInput] = useState(false);
@@ -22,6 +24,7 @@ export default function DocumentEditor({
 
     const editor = useEditor({
         immediatelyRender: true,
+        editable: !readOnly,
         extensions: [
             StarterKit.configure({
                 link: false,
@@ -80,6 +83,7 @@ export default function DocumentEditor({
     return (
         <div>
             {/* Toolbar */}
+            {!readOnly && (
             <div style={{ display: "flex", gap: "4px", padding: "8px", borderBottom: "1px solid #e0e0e0", flexWrap: "wrap", alignItems: "center" }}>
 
                 {/* Text formatting */}
@@ -194,9 +198,10 @@ export default function DocumentEditor({
                     ¶
                 </button>
             </div>
+            )}
 
             {/* Link input bar */}
-            {showLinkInput && (
+            {!readOnly && showLinkInput && (
                 <div style={{ display: "flex", gap: "8px", padding: "8px", borderBottom: "1px solid #e0e0e0", alignItems: "center" }}>
                     <input
                         type="url"

@@ -13,12 +13,14 @@ import {
   createDocument,
   getDocuments,
   deleteDocument,
+  getSharedDocuments,
   Document,
 } from "@/services/document.services";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [sharedDocuments, setSharedDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [search, setSearch] = useState("");
@@ -37,6 +39,17 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const fetchSharedDocuments = useCallback(async () => {
+    try {
+      const response = await getSharedDocuments();
+      if (response.success && response.documents) {
+        setSharedDocuments(response.documents);
+      }
+    } catch (error) {
+      toast.error("Failed to fetch shared documents");
+    }
+  }, []);
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -44,6 +57,7 @@ export default function DashboardPage() {
         if (response.success && response.user) {
           setUser(response.user);
           await fetchDocuments();
+          await fetchSharedDocuments();
         } else {
           router.push("/login");
         }
@@ -206,6 +220,39 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Shared with me section */}
+        {sharedDocuments.length > 0 && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Shared with me</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {sharedDocuments.map((doc) => (
+                  <li key={doc.id}>
+                    <div
+                      onClick={() => router.push(`/documents/${doc.id}`)}
+                      className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                    >
+                      <div>
+                        <p className="font-medium text-zinc-900 dark:text-zinc-50">
+                          {doc.title}
+                        </p>
+                        <p className="text-sm text-zinc-500">
+                          {new Date(doc.updatedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span className="text-xs text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">
+                        {(doc as any).accessRole}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import {getDocumentById,updateDocument,downloadDocument,} from "@/services/document.services";
 
 import DocumentEditor from "@/components/editor/DocumentEditor";
+import ShareDialog from "@/components/ShareDialog";
 
 export default function DocumentPage() {
 
@@ -16,6 +17,8 @@ export default function DocumentPage() {
     const [document, setDocument] = useState<any>(null);
     const [title, setTitle] = useState("");
     const [content, setContent] = useState<any>(null);
+    const [accessRole, setAccessRole] = useState<"OWNER" | "EDITOR" | "VIEWER" | null>(null);
+    const [shareOpen, setShareOpen] = useState(false);
     const latestTitle = useRef(title);
     const latestContent = useRef(content);
     const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,6 +42,7 @@ export default function DocumentPage() {
             setDocument(response.document);
             setTitle(response.document.title);
             setContent(response.document.content);
+            setAccessRole(response.document.accessRole);
 
             latestTitle.current = response.document.title;
             latestContent.current = response.document.content;
@@ -125,8 +129,25 @@ export default function DocumentPage() {
                 <input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    style={{ fontSize: "24px", fontWeight: "bold", border: "none", outline: "none", flex: 1 }}
+                    readOnly={accessRole !== "OWNER" && accessRole !== "EDITOR"}
+                    style={{
+                        fontSize: "24px",
+                        fontWeight: "bold",
+                        border: "none",
+                        outline: "none",
+                        flex: 1,
+                        background: accessRole === "VIEWER" ? "transparent" : undefined,
+                        cursor: accessRole === "VIEWER" ? "default" : undefined,
+                    }}
                 />
+                {accessRole === "OWNER" && (
+                    <button
+                        onClick={() => setShareOpen(true)}
+                        style={{ padding: "6px 12px", border: "1px solid #ccc", borderRadius: "4px", background: "#fff", cursor: "pointer", fontSize: "14px" }}
+                    >
+                        Share
+                    </button>
+                )}
                 <button
                     onClick={() => handleDownload("txt")}
                     style={{ padding: "6px 12px", border: "1px solid #ccc", borderRadius: "4px", background: "#fff", cursor: "pointer", fontSize: "14px" }}
@@ -146,9 +167,16 @@ export default function DocumentPage() {
                     <DocumentEditor
                         initialContent={content}
                         onChange={setContent}
+                        readOnly={accessRole === "VIEWER"}
                     />
                 </div>
             </div>
+
+            <ShareDialog
+                documentId={id}
+                open={shareOpen}
+                onClose={() => setShareOpen(false)}
+            />
 
         </div>
     );

@@ -5,8 +5,16 @@ export interface Document {
   title: string;
   content: any;
   ownerId: string;
+  accessRole?: "OWNER" | "EDITOR" | "VIEWER";
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SharedUser {
+  userId: string;
+  email: string;
+  name: string;
+  role: "VIEWER" | "EDITOR";
 }
 
 export const createDocument = async () => {
@@ -73,5 +81,26 @@ export const deleteDocument = async (
     id: string,
 ) => {
     const response = await api.delete(`/documents/${id}`);
+    return response.data;
+};
+
+export const shareDocument = async (
+    id: string,
+    data: {
+        email: string;
+        role: "VIEWER" | "EDITOR";
+    }
+) => {
+    const response = await api.post(`/documents/${id}/share`, data);
+    return response.data;
+};
+
+export const getDocumentPermissions = async (id: string) => {
+    const response = await api.get(`/documents/${id}/permissions`);
+    return response.data;
+};
+
+export const getSharedDocuments = async () => {
+    const response = await api.get("/documents/shared");
     return response.data;
 };
