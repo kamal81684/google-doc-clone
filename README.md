@@ -95,6 +95,3 @@ The application uses PostgreSQL with Prisma ORM. The schema consists of three ma
 - **Document** — Stores document title and content (as TipTap JSON)
 - **DocumentPermission** — Manages role-based access control (VIEWER / EDITOR) for shared documents
 
-## License
-
-ISC
