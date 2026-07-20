@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
+import { checkDocumentAccess } from "./permission.service";
 
 export const createDocumentService = async (ownerId: string) => {
     const document = await prisma.document.create({
@@ -12,14 +13,21 @@ export const createDocumentService = async (ownerId: string) => {
     return document;
 };
 
-export const getDocumentByIdService = async (documentId: string, ownerId: string) => {
-    const document = await prisma.document.findFirst({
-        where: {
-            id: documentId,
-            ownerId,
-        },
+export const getDocumentByIdService = async (documentId: string, userId: string) => {
+    const access = await checkDocumentAccess(documentId, userId);
+
+    if (!access) {
+        throw new Error("Document not found or you do not have access");
+    }
+
+    const document = await prisma.document.findUnique({
+        where: { id: documentId },
     });
-    return document;
+
+    return {
+        ...document,
+        accessRole: access,
+    };
 };
 
 export const getDocumentsByOwnerService = async (ownerId: string, search?: string) => {
@@ -52,6 +60,27 @@ export const getUserDocumentsService = async (
     return documents;
 };
 
+export const getSharedWithMeService = async (userId: string) => {
+    const permissions = await prisma.documentPermission.findMany({
+        where: {
+            userId,
+        },
+        include: {
+            document: true,
+        },
+        orderBy: {
+            document: {
+                updatedAt: "desc",
+            },
+        },
+    });
+
+    return permissions.map((p) => ({
+        ...p.document,
+        accessRole: p.role,
+    }));
+};
+
 export const updateDocumentService = async(
     documentId: string,
     userId: string,
@@ -59,6 +88,12 @@ export const updateDocumentService = async(
     content?: any
 ) => {
     try {
+        const access = await checkDocumentAccess(documentId, userId);
+
+        if (!access || access === "VIEWER") {
+            throw new Error("You do not have permission to update this document");
+        }
+
         if (title !== undefined) {
             const existing = await prisma.document.findFirst({
                 where: {
@@ -76,7 +111,6 @@ export const updateDocumentService = async(
         const document = await prisma.document.update({
             where: {
                 id: documentId,
-                ownerId: userId,
             },
             data: {
                 ...(title !== undefined ? { title } : {}),

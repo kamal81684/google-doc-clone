@@ -1,10 +1,11 @@
 import {Router} from "express";
-import {createDocument, deleteDocument, getDocumentById, getDocuments, getUserDocuments, updateDocument} from "../controllers/document.controller";
+import {createDocument, deleteDocument, getDocumentById, getDocuments, getUserDocuments, getSharedWithMe, updateDocument} from "../controllers/document.controller";
 import {isAuthenticated} from "../middleware/auth.middleware";
 import {
     downloadDocumentAsTxt,
     downloadDocumentAsPdf,
 } from "../controllers/document.controller";
+import {shareDocument, getSharedUsers} from "../controllers/permission.controller";
 
 
 const router = Router();
@@ -12,6 +13,8 @@ const router = Router();
 router.get("/", isAuthenticated, getDocuments);
 router.post("/", isAuthenticated, createDocument);
 router.get("/user", isAuthenticated, getUserDocuments);
+
+router.get("/shared", isAuthenticated, getSharedWithMe);
 
 // Put these BEFORE "/:id"
 router.get(
@@ -24,6 +27,18 @@ router.get(
     "/:id/download/pdf",
     isAuthenticated,
     downloadDocumentAsPdf
+);
+
+router.post(
+    "/:id/share",
+    isAuthenticated,
+    shareDocument
+);
+
+router.get(
+    "/:id/permissions",
+    isAuthenticated,
+    getSharedUsers
 );
 
 router.get("/:id", isAuthenticated, getDocumentById);

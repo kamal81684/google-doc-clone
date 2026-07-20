@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createDocumentService, deleteDocumentService, getDocumentByIdService, getDocumentsByOwnerService, getUserDocumentsService, updateDocumentService } from "../services/document.service";
+import { createDocumentService, deleteDocumentService, getDocumentByIdService, getDocumentsByOwnerService, getUserDocumentsService, getSharedWithMeService, updateDocumentService } from "../services/document.service";
 import PDFDocument from "pdfkit";
 import { extractTextFromTiptap } from "../utils/documentExport";
 
@@ -100,6 +100,28 @@ export const getUserDocuments = async (
         const userId = (req as any).user.id;
 
         const documents = await getUserDocumentsService(userId);
+
+        return res.status(200).json({
+            success: true,
+            documents,
+        });
+
+    } catch (error: any) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+export const getSharedWithMe = async (
+    req: Request,
+    res: Response
+) => {
+    try {
+        const userId = (req as any).user.id;
+
+        const documents = await getSharedWithMeService(userId);
 
         return res.status(200).json({
             success: true,
