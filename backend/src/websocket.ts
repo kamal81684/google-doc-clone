@@ -126,17 +126,22 @@ export const setupWebSocket = (server: any) => {
       return;
     }
 
-    checkDocumentAccess(docName, userId).then((access) => {
-      if (!access) {
-        socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
-        socket.destroy();
-        return;
-      }
+    checkDocumentAccess(docName, userId)
+      .then((access) => {
+        if (!access) {
+          socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+          socket.destroy();
+          return;
+        }
 
-      wss.handleUpgrade(req, socket, head, (ws) => {
-        wss.emit("connection", ws, req, { userId, userName, docName });
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          wss.emit("connection", ws, req, { userId, userName, docName });
+        });
+      })
+      .catch(() => {
+        socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+        socket.destroy();
       });
-    });
   });
 
   wss.on(
@@ -147,7 +152,13 @@ export const setupWebSocket = (server: any) => {
       meta: { userId: string; userName: string; docName: string }
     ) => {
       const { userId, userName, docName } = meta;
-      const ydoc = await getYDoc(docName);
+      let ydoc: Y.Doc;
+      try {
+        ydoc = await getYDoc(docName);
+      } catch {
+        ws.close();
+        return;
+      }
 
       // Get or create awareness for this doc
       if (!docAwareness.has(docName)) {

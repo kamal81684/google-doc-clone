@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { createDocumentService, deleteDocumentService, getDocumentByIdService, getDocumentsByOwnerService, getUserDocumentsService, getSharedWithMeService, updateDocumentService } from "../services/document.service";
 import PDFDocument from "pdfkit";
-import { extractTextFromTiptap } from "../utils/documentExport";
+import { extractDocumentText } from "../utils/documentExport";
 
 export const createDocument = async (
     req: Request,
@@ -171,7 +171,6 @@ export const downloadDocumentAsTxt = async (
     req: Request,
     res: Response
 ) => {
-    console.log("downloadDocumentAsTxt called");
     try {
         const userId = (req as any).user.id;
         const id = req.params.id as string;
@@ -188,13 +187,14 @@ export const downloadDocumentAsTxt = async (
             });
         }
 
-        const text = extractTextFromTiptap(
-            document.content
+        const text = extractDocumentText(
+            document.content,
+            document.ydocState as Buffer | null
         );
 
-        const fileContent = `${document.title}\n\n${text}`;
+        const fileContent = `${document.title ?? "Untitled Document"}\n\n${text}`;
 
-        const safeTitle = document.title.replace(
+        const safeTitle = (document.title ?? "Untitled Document").replace(
             /[^a-zA-Z0-9-_ ]/g,
             ""
         );
@@ -239,11 +239,12 @@ export const downloadDocumentAsPdf = async (
             });
         }
 
-        const text = extractTextFromTiptap(
-            document.content
+        const text = extractDocumentText(
+            document.content,
+            document.ydocState as Buffer | null
         );
 
-        const safeTitle = document.title.replace(
+        const safeTitle = (document.title ?? "Untitled Document").replace(
             /[^a-zA-Z0-9-_ ]/g,
             ""
         );
@@ -265,7 +266,7 @@ export const downloadDocumentAsPdf = async (
 
         pdf
             .fontSize(20)
-            .text(document.title);
+            .text(document.title ?? "Untitled Document");
 
         pdf.moveDown();
 
