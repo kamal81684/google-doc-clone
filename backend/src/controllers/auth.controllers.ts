@@ -1,9 +1,22 @@
 import { Request, Response } from "express";
 import {
+    googleAuthUser,
     loginUser,
     registerUser,
 } from "../services/auth.services";
 import { generateToken } from "../utils/generateToken";
+
+const setAuthCookie = (res: Response, userId: string) => {
+    const token = generateToken(userId);
+
+    res.cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+};
 
 export const register = async (
     req: Request,
@@ -51,15 +64,43 @@ export const login = async (
             password
         );
 
-        const token = generateToken(user.id);
+        setAuthCookie(res, user.id);
 
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
+        res.status(200).json({
+            success: true,
+            user,
         });
+
+    } catch (error: any) {
+
+        res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+
+    }
+
+};
+
+export const googleLogin = async (
+    req: Request,
+    res: Response
+) => {
+
+    try {
+
+        const { credential } = req.body;
+
+        if (!credential) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing Google credential",
+            });
+        }
+
+        const user = await googleAuthUser(credential);
+
+        setAuthCookie(res, user.id);
 
         res.status(200).json({
             success: true,

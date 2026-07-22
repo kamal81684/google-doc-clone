@@ -90,8 +90,12 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? "Logging in..." : "Login"}
+        <Button
+          type="submit"
+          className="w-full rounded-full bg-[#1a73e8] text-white hover:bg-[#1765cc]"
+          disabled={isLoading}
+        >
+          {isLoading ? "Signing in..." : "Sign in"}
         </Button>
       </form>
     </Form>

@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import {
+    googleLogin,
     login,
     logout,
     register,
@@ -15,6 +16,8 @@ router.post("/register", register);
 
 router.post("/login", login);
 
+router.post("/google", googleLogin);
+
 router.post("/logout", logout);
 
 router.get("/me", isAuthenticated, async (req, res) => {
@@ -27,6 +30,7 @@ router.get("/me", isAuthenticated, async (req, res) => {
                 id: true,
                 name: true,
                 email: true,
+                avatar: true,
                 createdAt: true,
                 updatedAt: true,
             },

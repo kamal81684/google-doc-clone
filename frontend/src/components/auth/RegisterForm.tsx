@@ -129,8 +129,12 @@ export function RegisterForm() {
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? "Creating Account..." : "Register"}
+        <Button
+          type="submit"
+          className="w-full rounded-full bg-[#1a73e8] text-white hover:bg-[#1765cc]"
+          disabled={isLoading}
+        >
+          {isLoading ? "Creating account..." : "Create account"}
         </Button>
       </form>
     </Form>

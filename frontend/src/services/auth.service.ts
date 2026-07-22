@@ -4,6 +4,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  avatar?: string | null;
   createdAt: string;
 }
 
@@ -35,6 +36,13 @@ export const login = async (
     email,
     password,
   });
+  return response.data;
+};
+
+export const googleLogin = async (
+  credential: string
+): Promise<AuthResponse> => {
+  const response = await api.post("/auth/google", { credential });
   return response.data;
 };
 

@@ -1,5 +1,46 @@
 declare module "lucide-react" {
   import { ComponentType, SVGProps } from "react";
-  export const Search: ComponentType<SVGProps<SVGSVGElement> & { size?: number | string }>;
-  export const Trash2: ComponentType<SVGProps<SVGSVGElement> & { size?: number | string }>;
+  type Icon = ComponentType<SVGProps<SVGSVGElement> & { size?: number | string }>;
+
+  export const Search: Icon;
+  export const Trash2: Icon;
+  export const Bold: Icon;
+  export const Italic: Icon;
+  export const Underline: Icon;
+  export const Strikethrough: Icon;
+  export const List: Icon;
+  export const ListOrdered: Icon;
+  export const AlignLeft: Icon;
+  export const AlignCenter: Icon;
+  export const AlignRight: Icon;
+  export const AlignJustify: Icon;
+  export const Link2: Icon;
+  export const Code: Icon;
+  export const Undo2: Icon;
+  export const Redo2: Icon;
+  export const Printer: Icon;
+  export const Type: Icon;
+  export const ChevronDown: Icon;
+  export const Plus: Icon;
+  export const Minus: Icon;
+  export const Star: Icon;
+  export const MoreVertical: Icon;
+  export const MessageSquare: Icon;
+  export const FileText: Icon;
+  export const LayoutGrid: Icon;
+  export const Folder: Icon;
+  export const FolderOpen: Icon;
+  export const User: Icon;
+  export const LogOut: Icon;
+  export const Menu: Icon;
+  export const Share2: Icon;
+  export const Check: Icon;
+  export const X: Icon;
+  export const ImagePlus: Icon;
+  export const Table: Icon;
+  export const SlidersHorizontal: Icon;
+  export const Users: Icon;
+  export const Clock: Icon;
+  export const Lock: Icon;
+  export const SortDesc: Icon;
 }
