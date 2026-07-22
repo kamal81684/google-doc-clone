@@ -7,8 +7,9 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
 import Link from "@tiptap/extension-link";
 import Collaboration from "@tiptap/extension-collaboration";
-import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
+import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { WebsocketProvider } from "y-websocket";
+import type { Doc as YDoc } from "yjs";
 
 const COLORS = [
   "#30bced", "#6eeb83", "#ffbc42", "#ecd444",
@@ -16,28 +17,49 @@ const COLORS = [
 ];
 
 interface DocumentEditorProps {
-    provider: WebsocketProvider | null;
+    provider: WebsocketProvider;
+    doc: YDoc;
     userName: string;
     readOnly?: boolean;
 }
 
 export default function DocumentEditor(props: DocumentEditorProps) {
-    if (!props.provider) return null;
-    return <EditorInner {...props} provider={props.provider} />;
+    const { provider, doc, userName, readOnly = false } = props;
+
+    if (!provider || !doc) return null;
+
+    const collaborationDoc = doc as YDoc;
+    return (
+        <EditorInner
+            provider={provider}
+            doc={collaborationDoc}
+            userName={userName}
+            readOnly={readOnly}
+        />
+    );
 }
 
 function EditorInner({
     provider,
+    doc,
     userName,
     readOnly = false,
 }: {
     provider: WebsocketProvider;
+    doc: YDoc;
     userName: string;
     readOnly?: boolean;
 }) {
     const [showLinkInput, setShowLinkInput] = useState(false);
     const [linkUrl, setLinkUrl] = useState("");
-    const userColor = useMemo(() => COLORS[Math.floor(Math.random() * COLORS.length)], []);
+    const userColor = useMemo(() => {
+        let hash = 0;
+        for (const char of userName) {
+            hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+        }
+
+        return COLORS[hash % COLORS.length];
+    }, [userName]);
 
     const editor = useEditor({
         immediatelyRender: true,
@@ -45,6 +67,7 @@ function EditorInner({
         extensions: [
             StarterKit.configure({
                 link: false,
+                undoRedo: false,
             }),
             Placeholder.configure({
                 placeholder: "Start typing...",
@@ -59,9 +82,10 @@ function EditorInner({
                 },
             }),
             Collaboration.configure({
-                fragment: provider.doc.getXmlFragment("tiptap"),
+                document: doc,
+                field: "tiptap",
             }),
-            CollaborationCursor.configure({
+            CollaborationCaret.configure({
                 provider: provider,
                 user: {
                     name: userName,

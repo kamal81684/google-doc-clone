@@ -16,9 +16,13 @@ interface UseCollaborationOptions {
 
 export function useCollaboration({ documentId, userName }: UseCollaborationOptions) {
   const [provider, setProvider] = useState<WebsocketProvider | null>(null);
+  const [doc, setDoc] = useState<Y.Doc | null>(null);
   const [isSynced, setIsSynced] = useState(false);
   const userNameRef = useRef(userName);
-  userNameRef.current = userName;
+
+  useEffect(() => {
+    userNameRef.current = userName;
+  }, [userName]);
 
   useEffect(() => {
     const doc = new Y.Doc();
@@ -41,9 +45,16 @@ export function useCollaboration({ documentId, userName }: UseCollaborationOptio
       setIsSynced(synced);
     });
 
-    setProvider(wsProvider);
+    let isMounted = true;
+
+    Promise.resolve().then(() => {
+      if (!isMounted) return;
+      setProvider(wsProvider);
+      setDoc(doc);
+    });
 
     return () => {
+      isMounted = false;
       wsProvider.awareness.setLocalState(null);
       wsProvider.disconnect();
       wsProvider.destroy();
@@ -60,5 +71,5 @@ export function useCollaboration({ documentId, userName }: UseCollaborationOptio
     }
   }, [userName, provider]);
 
-  return { provider, isSynced };
+  return { provider, doc, isSynced };
 }

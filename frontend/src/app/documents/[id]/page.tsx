@@ -5,17 +5,31 @@ import { useParams } from "next/navigation";
 import toast from "react-hot-toast";
 
 import {getDocumentById,updateDocument,downloadDocument,} from "@/services/document.services";
+import type { Document as DocumentData } from "@/services/document.services";
 
 import { useCollaboration } from "@/hooks/useCollaboration";
 import DocumentEditor from "@/components/editor/DocumentEditor";
 import ShareDialog from "@/components/ShareDialog";
+
+function getErrorMessage(error: unknown, fallback: string) {
+    if (typeof error === "object" && error !== null) {
+        const typedError = error as {
+            response?: { data?: { message?: string } };
+            message?: string;
+        };
+
+        return typedError.response?.data?.message || typedError.message || fallback;
+    }
+
+    return fallback;
+}
 
 export default function DocumentPage() {
 
     const params = useParams();
     const id = params.id as string;
 
-    const [document, setDocument] = useState<any>(null);
+    const [document, setDocument] = useState<DocumentData | null>(null);
     const [title, setTitle] = useState("");
     const [accessRole, setAccessRole] = useState<"OWNER" | "EDITOR" | "VIEWER" | null>(null);
     const [shareOpen, setShareOpen] = useState(false);
@@ -52,7 +66,7 @@ export default function DocumentPage() {
         fetchUser();
     }, []);
 
-    const { provider, isSynced } = useCollaboration({
+    const { provider, doc, isSynced } = useCollaboration({
         documentId: id,
         userName,
     });
@@ -71,9 +85,8 @@ export default function DocumentPage() {
             try {
                 await updateDocument(id, { title: newTitle });
                 previousTitle.current = newTitle;
-            } catch (err: any) {
-                const msg = err?.response?.data?.message || "Failed to save title";
-                toast.error(msg);
+            } catch (error: unknown) {
+                toast.error(getErrorMessage(error, "Failed to save title"));
                 setTitle(previousTitle.current);
             }
         }, 1000);
@@ -99,12 +112,12 @@ export default function DocumentPage() {
             link.remove();
             window.URL.revokeObjectURL(url);
             toast.success(`Downloaded as ${format.toUpperCase()}`);
-        } catch (err: any) {
-            toast.error(err.message || "Download failed");
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error, "Download failed"));
         }
     }, [id, title]);
 
-    if (!document || !isSynced || !provider) {
+    if (!document || !isSynced || !provider || !doc) {
         return <p>Loading document...</p>;
     }
 
@@ -152,6 +165,7 @@ export default function DocumentPage() {
                 <div style={{ width: "100%", maxWidth: "816px", minHeight: "1056px", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.12)", padding: "96px 72px" }}>
                     <DocumentEditor
                         provider={provider}
+                        doc={doc}
                         userName={userName}
                         readOnly={accessRole === "VIEWER"}
                     />
