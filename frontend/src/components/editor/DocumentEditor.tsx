@@ -1,26 +1,43 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
 import Link from "@tiptap/extension-link";
+import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
+import { WebsocketProvider } from "y-websocket";
+
+const COLORS = [
+  "#30bced", "#6eeb83", "#ffbc42", "#ecd444",
+  "#ee6352", "#9ac2c9", "#8acb88", "#1be7ff",
+];
 
 interface DocumentEditorProps {
-    initialContent: any;
-    onChange: (content: any) => void;
+    provider: WebsocketProvider | null;
+    userName: string;
     readOnly?: boolean;
 }
 
-export default function DocumentEditor({
-    initialContent,
-    onChange,
-    readOnly = false,
-}: DocumentEditorProps) {
+export default function DocumentEditor(props: DocumentEditorProps) {
+    if (!props.provider) return null;
+    return <EditorInner {...props} provider={props.provider} />;
+}
 
+function EditorInner({
+    provider,
+    userName,
+    readOnly = false,
+}: {
+    provider: WebsocketProvider;
+    userName: string;
+    readOnly?: boolean;
+}) {
     const [showLinkInput, setShowLinkInput] = useState(false);
     const [linkUrl, setLinkUrl] = useState("");
+    const userColor = useMemo(() => COLORS[Math.floor(Math.random() * COLORS.length)], []);
 
     const editor = useEditor({
         immediatelyRender: true,
@@ -41,20 +58,37 @@ export default function DocumentEditor({
                     style: "color: #2563eb; text-decoration: underline; cursor: pointer;",
                 },
             }),
-        ],
-
-        content: initialContent || {
-            type: "doc",
-            content: [
-                {
-                    type: "paragraph",
+            Collaboration.configure({
+                fragment: provider.doc.getXmlFragment("tiptap"),
+            }),
+            CollaborationCursor.configure({
+                provider: provider,
+                user: {
+                    name: userName,
+                    color: userColor,
                 },
-            ],
-        },
+                render: (user) => {
+                    const cursor = document.createElement("span");
+                    cursor.classList.add("collaboration-cursor__caret");
+                    cursor.setAttribute("style", `border-color: ${user.color}`);
 
-        onUpdate: ({ editor }) => {
-            onChange(editor.getJSON());
-        },
+                    const label = document.createElement("div");
+                    label.classList.add("collaboration-cursor__label");
+                    label.setAttribute("style", `background-color: ${user.color}`);
+                    label.insertBefore(document.createTextNode(user.name), null);
+
+                    cursor.insertBefore(label, null);
+                    return cursor;
+                },
+                selectionRender: (user) => {
+                    return {
+                        nodeName: "span",
+                        class: "collaboration-cursor__selection",
+                        style: `background-color: ${user.color}22`,
+                    };
+                },
+            }),
+        ],
     });
 
     const setLink = useCallback(() => {

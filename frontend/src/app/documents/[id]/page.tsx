@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 
 import {getDocumentById,updateDocument,downloadDocument,} from "@/services/document.services";
 
+import { useCollaboration } from "@/hooks/useCollaboration";
 import DocumentEditor from "@/components/editor/DocumentEditor";
 import ShareDialog from "@/components/ShareDialog";
 
@@ -16,56 +17,75 @@ export default function DocumentPage() {
 
     const [document, setDocument] = useState<any>(null);
     const [title, setTitle] = useState("");
-    const [content, setContent] = useState<any>(null);
     const [accessRole, setAccessRole] = useState<"OWNER" | "EDITOR" | "VIEWER" | null>(null);
     const [shareOpen, setShareOpen] = useState(false);
-    const latestTitle = useRef(title);
-    const latestContent = useRef(content);
-    const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [userName, setUserName] = useState("Anonymous");
 
     const previousTitle = useRef(title);
 
     useEffect(() => {
-        latestTitle.current = title;
-    }, [title]);
-
-    useEffect(() => {
-        latestContent.current = content;
-    }, [content]);
-
-    useEffect(() => {
-
         const fetchDocument = async () => {
-
             const response = await getDocumentById(id);
-
             setDocument(response.document);
             setTitle(response.document.title);
-            setContent(response.document.content);
             setAccessRole(response.document.accessRole);
-
-            latestTitle.current = response.document.title;
-            latestContent.current = response.document.content;
-
+            previousTitle.current = response.document.title;
         };
-
         fetchDocument();
-
     }, [id]);
 
-    const saveDocument = useCallback(async (fields: { title?: string; content?: any }): Promise<boolean> => {
-        try {
-            await updateDocument(id, fields);
-            toast.success("Document saved");
-            return true;
-        } catch (err: any) {
-            const msg = err?.response?.data?.message || "Failed to save document";
-            toast.error(msg);
-            return false;
+    useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1"}/auth/me`,
+                    { credentials: "include" }
+                );
+                const data = await res.json();
+                if (data.user?.name) {
+                    setUserName(data.user.name);
+                }
+            } catch {
+                // keep default "Anonymous"
+            }
+        };
+        fetchUser();
+    }, []);
+
+    const { provider, isSynced } = useCollaboration({
+        documentId: id,
+        userName,
+    });
+
+    // Title-only save (debounced)
+    const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleTitleChange = useCallback((newTitle: string) => {
+        setTitle(newTitle);
+
+        if (titleTimer.current) {
+            clearTimeout(titleTimer.current);
         }
+
+        titleTimer.current = setTimeout(async () => {
+            try {
+                await updateDocument(id, { title: newTitle });
+                previousTitle.current = newTitle;
+            } catch (err: any) {
+                const msg = err?.response?.data?.message || "Failed to save title";
+                toast.error(msg);
+                setTitle(previousTitle.current);
+            }
+        }, 1000);
     }, [id]);
 
-    const pendingSave = useRef<{ title?: string; content?: any } | null>(null);
+    useEffect(() => {
+        return () => {
+            if (titleTimer.current) {
+                clearTimeout(titleTimer.current);
+            }
+        };
+    }, []);
 
     const handleDownload = useCallback(async (format: "txt" | "pdf") => {
         try {
@@ -84,42 +104,8 @@ export default function DocumentPage() {
         }
     }, [id, title]);
 
-    useEffect(() => {
-        if (!document) return;
-
-        if (debounceTimer.current) {
-            clearTimeout(debounceTimer.current);
-        }
-
-        pendingSave.current = { title: latestTitle.current, content: latestContent.current };
-
-        debounceTimer.current = setTimeout(async () => {
-            if (pendingSave.current) {
-                const fields = pendingSave.current;
-                pendingSave.current = null;
-                const success = await saveDocument(fields);
-                if (success) {
-                    previousTitle.current = latestTitle.current;
-                } else if (fields.title !== undefined) {
-                    setTitle(previousTitle.current);
-                    latestTitle.current = previousTitle.current;
-                }
-            }
-        }, 1000);
-
-        return () => {
-            if (debounceTimer.current) {
-                clearTimeout(debounceTimer.current);
-            }
-            if (pendingSave.current) {
-                updateDocument(id, pendingSave.current);
-                pendingSave.current = null;
-            }
-        };
-    }, [title, content, document, saveDocument, id]);
-
-    if (!document) {
-        return <p>Loading...</p>;
+    if (!document || !isSynced || !provider) {
+        return <p>Loading document...</p>;
     }
 
     return (
@@ -128,7 +114,7 @@ export default function DocumentPage() {
             <div style={{ padding: "12px 24px", background: "#fff", borderBottom: "1px solid #e0e0e0", display: "flex", alignItems: "center", gap: "12px" }}>
                 <input
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
+                    onChange={(e) => handleTitleChange(e.target.value)}
                     readOnly={accessRole !== "OWNER" && accessRole !== "EDITOR"}
                     style={{
                         fontSize: "24px",
@@ -165,8 +151,8 @@ export default function DocumentPage() {
             <div style={{ flex: 1, overflow: "auto", display: "flex", justifyContent: "center", padding: "24px 0" }}>
                 <div style={{ width: "100%", maxWidth: "816px", minHeight: "1056px", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.12)", padding: "96px 72px" }}>
                     <DocumentEditor
-                        initialContent={content}
-                        onChange={setContent}
+                        provider={provider}
+                        userName={userName}
                         readOnly={accessRole === "VIEWER"}
                     />
                 </div>
