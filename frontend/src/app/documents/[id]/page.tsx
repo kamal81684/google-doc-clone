@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Star, MessageSquare, MoreVertical, Lock } from "lucide-react";
+import { Star, MessageSquare, MoreVertical, Lock, Share2 } from "lucide-react";
 
 import {
   getDocumentById,
@@ -305,7 +305,7 @@ export default function DocumentPage() {
 
           {accessRole === "OWNER" && (
             <button className="gd-btn-primary" onClick={() => setShareOpen(true)}>
-              <Lock size={16} />
+              <Share2 size={16} />
               Share
             </button>
           )}
