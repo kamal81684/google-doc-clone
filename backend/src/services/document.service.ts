@@ -85,7 +85,7 @@ export const updateDocumentService = async(
     documentId: string,
     userId: string,
     title?: string,
-    content?: any
+    content?: any   // keep param for backward compat but stop using it for content
 ) => {
     try {
         const access = await checkDocumentAccess(documentId, userId);
@@ -114,7 +114,7 @@ export const updateDocumentService = async(
             },
             data: {
                 ...(title !== undefined ? { title } : {}),
-                ...(content !== undefined ? { content } : {}),
+                // REMOVE content from here — Yjs manages content now
             },
         });
 

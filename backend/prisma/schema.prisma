@@ -48,6 +48,8 @@ model Document {
 
   content Json?
 
+  ydocState Bytes?
+
   ownerId String
 
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
