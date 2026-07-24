@@ -10,25 +10,7 @@ import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { WebsocketProvider } from "y-websocket";
 import type { Doc as YDoc } from "yjs";
-import {
-  Undo2,
-  Redo2,
-  Printer,
-  Bold,
-  Italic,
-  Underline as UnderlineIcon,
-  Strikethrough,
-  Link2,
-  Code,
-  List,
-  ListOrdered,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
-  ChevronDown,
-  Check,
-} from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
 
 const COLORS = [
   "#30bced", "#6eeb83", "#ffbc42", "#ecd444",
@@ -70,12 +52,14 @@ function ToolBtn({
   disabled,
   title,
   children,
+  className,
 }: {
   onClick: () => void;
   active?: boolean;
   disabled?: boolean;
   title: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
     <button
@@ -85,7 +69,7 @@ function ToolBtn({
       disabled={disabled}
       title={title}
       aria-label={title}
-      className={`gd-icon-btn${active ? " is-active" : ""}`}
+      className={`gd-icon-btn${active ? " is-active" : ""}${className ? ` ${className}` : ""}`}
     >
       {children}
     </button>
@@ -93,7 +77,7 @@ function ToolBtn({
 }
 
 function Divider() {
-  return <span className="mx-1 h-5 w-px bg-[#dadce0]" />;
+  return <span className="mx-1 h-5 w-px bg-gray-200" />;
 }
 
 function EditorInner({
@@ -121,8 +105,6 @@ function EditorInner({
 
   const editor = useEditor({
     immediatelyRender: true,
-    // TipTap v3 no longer re-renders the component on transactions by default,
-    // so toolbar active states (bold/italic/etc.) would appear frozen. Opt in.
     shouldRerenderOnTransaction: true,
     editable: !readOnly,
     extensions: [
@@ -131,7 +113,7 @@ function EditorInner({
         undoRedo: false,
       }),
       Placeholder.configure({
-        placeholder: "Start typing…",
+        placeholder: "Start writing...",
       }),
       TextAlign.configure({
         types: ["heading", "paragraph"],
@@ -139,7 +121,7 @@ function EditorInner({
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
-          style: "color: #1155cc; text-decoration: underline; cursor: pointer;",
+          style: "color: #4f46e5; text-decoration: underline; cursor: pointer;",
         },
       }),
       Collaboration.configure({
@@ -194,16 +176,14 @@ function EditorInner({
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Toolbar */}
       {!readOnly && (
-        <div className="flex justify-center bg-white px-4 pb-2">
-          <div className="flex flex-wrap items-center gap-0.5 rounded-full bg-[#edf2fa] px-3 py-1.5">
+        <div className="flex justify-center border-b border-gray-200 bg-white px-4 py-1.5">
+          <div className="flex flex-wrap items-center gap-0.5">
+            {/* Undo / Redo - text labels */}
             <ToolBtn title="Undo" onClick={() => editor.chain().focus().undo().run()}>
-              <Undo2 size={18} />
+              <span className="text-xs font-medium">Undo</span>
             </ToolBtn>
             <ToolBtn title="Redo" onClick={() => editor.chain().focus().redo().run()}>
-              <Redo2 size={18} />
-            </ToolBtn>
-            <ToolBtn title="Print" onClick={() => window.print()}>
-              <Printer size={18} />
+              <span className="text-xs font-medium">Redo</span>
             </ToolBtn>
 
             <Divider />
@@ -214,10 +194,10 @@ function EditorInner({
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setStyleOpen((v) => !v)}
-                className="flex h-7 items-center gap-1 rounded px-2 text-sm text-[#202124] hover:bg-[#e2e7ed]"
+                className="flex h-8 items-center gap-1 rounded-md px-2 text-sm text-gray-600 hover:bg-gray-100"
               >
-                <span className="min-w-[84px] text-left">{currentStyle}</span>
-                <ChevronDown size={16} />
+                <span className="min-w-[80px] text-left text-xs">{currentStyle}</span>
+                <ChevronDown size={14} />
               </button>
               {styleOpen && (
                 <>
@@ -225,7 +205,7 @@ function EditorInner({
                     className="fixed inset-0 z-10"
                     onClick={() => setStyleOpen(false)}
                   />
-                  <div className="absolute left-0 z-20 mt-1 w-56 overflow-hidden rounded-lg border border-[#dadce0] bg-white py-1 shadow-[0_4px_20px_rgba(60,64,67,0.2)]">
+                  <div className="absolute left-0 z-20 mt-1 w-48 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                     {TEXT_STYLES.map((s) => {
                       const active = s.isActive(editor);
                       return (
@@ -235,19 +215,19 @@ function EditorInner({
                             s.run(editor);
                             setStyleOpen(false);
                           }}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[#f1f3f4]"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                         >
-                          <span className="w-4 text-[#1a73e8]">
-                            {active && <Check size={16} />}
+                          <span className="w-4 text-indigo-500">
+                            {active && <Check size={14} />}
                           </span>
                           <span
                             className={
                               s.label === "Heading 1"
-                                ? "text-xl"
+                                ? "text-lg font-bold"
                                 : s.label === "Heading 2"
-                                ? "text-lg"
+                                ? "text-base font-semibold"
                                 : s.label === "Heading 3"
-                                ? "text-base"
+                                ? "text-sm font-semibold"
                                 : "text-sm"
                             }
                           >
@@ -263,37 +243,39 @@ function EditorInner({
 
             <Divider />
 
+            {/* Bold / Italic / Underline / Strike - text labels */}
             <ToolBtn
               title="Bold"
               active={editor.isActive("bold")}
               onClick={() => editor.chain().focus().toggleBold().run()}
             >
-              <Bold size={18} />
+              <span className="text-sm font-bold">B</span>
             </ToolBtn>
             <ToolBtn
               title="Italic"
               active={editor.isActive("italic")}
               onClick={() => editor.chain().focus().toggleItalic().run()}
             >
-              <Italic size={18} />
+              <span className="text-sm italic">I</span>
             </ToolBtn>
             <ToolBtn
               title="Underline"
               active={editor.isActive("underline")}
               onClick={() => editor.chain().focus().toggleUnderline().run()}
             >
-              <UnderlineIcon size={18} />
+              <span className="text-sm underline">U</span>
             </ToolBtn>
             <ToolBtn
               title="Strikethrough"
               active={editor.isActive("strike")}
               onClick={() => editor.chain().focus().toggleStrike().run()}
             >
-              <Strikethrough size={18} />
+              <span className="text-sm line-through">S</span>
             </ToolBtn>
 
             <Divider />
 
+            {/* Link / Code - text labels */}
             <ToolBtn
               title="Insert link"
               active={editor.isActive("link")}
@@ -305,62 +287,57 @@ function EditorInner({
                 }
               }}
             >
-              <Link2 size={18} />
+              <span className="text-xs font-medium underline">Link</span>
             </ToolBtn>
             <ToolBtn
               title="Code block"
               active={editor.isActive("codeBlock")}
               onClick={() => editor.chain().focus().toggleCodeBlock().run()}
             >
-              <Code size={18} />
+              <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-medium">{"</>"}</span>
             </ToolBtn>
 
             <Divider />
 
+            {/* Lists - text labels */}
             <ToolBtn
               title="Bulleted list"
               active={editor.isActive("bulletList")}
               onClick={() => editor.chain().focus().toggleBulletList().run()}
             >
-              <List size={18} />
+              <span className="text-xs font-medium">Bullets</span>
             </ToolBtn>
             <ToolBtn
               title="Numbered list"
               active={editor.isActive("orderedList")}
               onClick={() => editor.chain().focus().toggleOrderedList().run()}
             >
-              <ListOrdered size={18} />
+              <span className="text-xs font-medium">Numbers</span>
             </ToolBtn>
 
             <Divider />
 
+            {/* Alignment - text labels */}
             <ToolBtn
               title="Align left"
               active={editor.isActive({ textAlign: "left" })}
               onClick={() => editor.chain().focus().setTextAlign("left").run()}
             >
-              <AlignLeft size={18} />
+              <span className="text-xs font-medium">Left</span>
             </ToolBtn>
             <ToolBtn
               title="Align center"
               active={editor.isActive({ textAlign: "center" })}
               onClick={() => editor.chain().focus().setTextAlign("center").run()}
             >
-              <AlignCenter size={18} />
+              <span className="text-xs font-medium">Center</span>
             </ToolBtn>
             <ToolBtn
               title="Align right"
               active={editor.isActive({ textAlign: "right" })}
               onClick={() => editor.chain().focus().setTextAlign("right").run()}
             >
-              <AlignRight size={18} />
-            </ToolBtn>
-            <ToolBtn
-              title="Justify"
-              active={editor.isActive({ textAlign: "justify" })}
-              onClick={() => editor.chain().focus().setTextAlign("justify").run()}
-            >
-              <AlignJustify size={18} />
+              <span className="text-xs font-medium">Right</span>
             </ToolBtn>
           </div>
         </div>
@@ -368,11 +345,11 @@ function EditorInner({
 
       {/* Link input bar */}
       {!readOnly && showLinkInput && (
-        <div className="flex justify-center bg-white px-4 pb-2">
-          <div className="flex w-full max-w-md items-center gap-2 rounded-lg border border-[#dadce0] bg-white px-3 py-2 shadow-sm">
+        <div className="flex justify-center border-b border-gray-200 bg-white px-4 py-2">
+          <div className="flex w-full max-w-md items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
             <input
               type="url"
-              placeholder="Paste a link (https://…)"
+              placeholder="Paste a link (https://...)"
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
               onKeyDown={(e) => {
@@ -383,11 +360,11 @@ function EditorInner({
                 }
               }}
               autoFocus
-              className="flex-1 text-sm outline-none"
+              className="flex-1 bg-transparent text-sm outline-none"
             />
             <button
               onClick={setLink}
-              className="rounded-full bg-[#1a73e8] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#1765cc]"
+              className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
             >
               Apply
             </button>
@@ -396,7 +373,7 @@ function EditorInner({
                 setShowLinkInput(false);
                 setLinkUrl("");
               }}
-              className="rounded-full px-3 py-1.5 text-sm text-[#5f6368] hover:bg-[#f1f3f4]"
+              className="rounded-md px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-100"
             >
               Cancel
             </button>
@@ -405,14 +382,14 @@ function EditorInner({
       )}
 
       {/* Canvas + page */}
-      <div className="flex-1 overflow-auto border-t border-[#e0e0e0] bg-[#f9fbfd] py-9">
+      <div className="flex-1 overflow-auto bg-[#f3f4f6] py-8">
         <div
-          className="mx-auto bg-white shadow-[0_1px_3px_rgba(60,64,67,0.15),0_1px_2px_rgba(60,64,67,0.3)]"
+          className="mx-auto bg-white shadow-sm"
           style={{
             width: "100%",
-            maxWidth: "816px",
+            maxWidth: "800px",
             minHeight: "1056px",
-            padding: "96px 72px",
+            padding: "80px 72px",
           }}
         >
           <EditorContent editor={editor} className="gd-page" />

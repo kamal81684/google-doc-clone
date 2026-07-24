@@ -67,7 +67,7 @@ export function LoginForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="Enter your email" type="email" {...field} />
+                <Input placeholder="you@example.com" type="email" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -92,7 +92,7 @@ export function LoginForm() {
         />
         <Button
           type="submit"
-          className="w-full rounded-full bg-[#1a73e8] text-white hover:bg-[#1765cc]"
+          className="w-full bg-indigo-600 text-white hover:bg-indigo-700"
           disabled={isLoading}
         >
           {isLoading ? "Signing in..." : "Sign in"}

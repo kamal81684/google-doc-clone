@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Star, MessageSquare, MoreVertical, Lock, Share2 } from "lucide-react";
+import { Lock, Share2, Download } from "lucide-react";
 
 import {
   getDocumentById,
@@ -16,8 +16,6 @@ import { useCollaboration } from "@/hooks/useCollaboration";
 import DocumentEditor from "@/components/editor/DocumentEditor";
 import ShareDialog from "@/components/ShareDialog";
 import { DocsLogo } from "@/components/DocsLogo";
-
-const MENU_ITEMS = ["File", "Edit", "View", "Insert", "Format", "Tools", "Help"];
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null) {
@@ -94,14 +92,11 @@ export default function DocumentPage() {
     userName,
   });
 
-  // Live collaborator presence (from Yjs awareness)
   useEffect(() => {
     if (!provider) return;
     const awareness = provider.awareness;
 
     const update = () => {
-      // Awareness can fire synchronously while the editor initializes during
-      // render; defer the state update so we never setState mid-render.
       queueMicrotask(() => {
         const list: PresenceUser[] = [];
         awareness.getStates().forEach((state, clientId) => {
@@ -111,7 +106,7 @@ export default function DocumentPage() {
             list.push({
               clientId,
               name: u.name,
-              color: u.color || "#5f6368",
+              color: u.color || "#6b7280",
             });
           }
         });
@@ -181,79 +176,57 @@ export default function DocumentPage() {
 
   if (!document || !isSynced || !provider || !doc) {
     return (
-      <div className="gd-font flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f9fbfd]">
-        <DocsLogo size={48} />
-        <p className="text-sm text-[#5f6368]">Loading document…</p>
+      <div className="app-font flex min-h-screen flex-col items-center justify-center gap-3 bg-[#fafafa]">
+        <DocsLogo size={40} />
+        <p className="text-sm text-gray-400">Loading document...</p>
       </div>
     );
   }
 
   return (
-    <div className="gd-font flex h-screen flex-col bg-[#f9fbfd]">
-      {/* Top app bar */}
-      <header className="flex items-center gap-3 bg-white px-4 py-2">
+    <div className="app-font flex h-screen flex-col bg-[#fafafa]">
+      {/* Top bar */}
+      <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
         <button
           onClick={() => router.push("/dashboard")}
           className="shrink-0"
           aria-label="Home"
         >
-          <DocsLogo size={40} />
+          <DocsLogo size={32} />
         </button>
 
         <div className="min-w-0 flex-1">
-          {/* Title row */}
           <div className="flex items-center gap-2">
             <input
               value={title}
               onChange={(e) => handleTitleChange(e.target.value)}
               readOnly={!canEdit}
               placeholder="Untitled document"
-              className="max-w-full truncate rounded border border-transparent px-1 text-[18px] text-[#202124] outline-none hover:border-[#dadce0] focus:border-[#1a73e8] read-only:hover:border-transparent"
+              className="max-w-full truncate rounded border border-transparent bg-transparent px-1.5 text-[15px] font-medium text-gray-900 outline-none hover:border-gray-200 focus:border-indigo-400 read-only:hover:border-transparent"
               style={{ width: `${Math.max(title.length + 2, 8)}ch` }}
             />
             {canEdit && (
-              <>
-                <button
-                  className="gd-icon-btn"
-                  aria-label="Star"
-                  title="Star"
-                >
-                  <Star size={18} />
-                </button>
-                {saveState === "saving" ? (
-                  <span className="text-xs text-[#5f6368]">Saving…</span>
-                ) : (
-                  <span className="text-xs text-[#5f6368]">Saved</span>
-                )}
-              </>
+              <span className="text-xs text-gray-400">
+                {saveState === "saving" ? "Saving..." : "Saved"}
+              </span>
             )}
             {!canEdit && (
-              <span className="flex items-center gap-1 rounded-full bg-[#f1f3f4] px-2 py-0.5 text-xs text-[#5f6368]">
+              <span className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
                 <Lock size={12} /> View only
               </span>
             )}
           </div>
-
-          {/* Menu bar */}
-          <div className="-ml-1 mt-0.5 flex items-center gap-0.5">
-            {MENU_ITEMS.map((item) => (
-              <button key={item} className="gd-menu-item">
-                {item}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Right actions */}
-        <div className="flex shrink-0 items-center gap-2">
-          {/* Presence avatars */}
+        <div className="flex shrink-0 items-center gap-1">
           {peers.length > 1 && (
-            <div className="mr-1 flex -space-x-2">
+            <div className="mr-2 flex -space-x-2">
               {peers.slice(0, 4).map((p) => (
                 <span
                   key={p.clientId}
                   className="gd-avatar border-2 border-white"
-                  style={{ width: 30, height: 30, background: p.color }}
+                  style={{ width: 28, height: 28, background: p.color }}
                   title={p.name}
                 >
                   {p.name.charAt(0).toUpperCase()}
@@ -262,19 +235,15 @@ export default function DocumentPage() {
             </div>
           )}
 
-          <button className="gd-icon-btn" title="Comments" aria-label="Comments">
-            <MessageSquare size={20} />
-          </button>
-
-          {/* Download menu */}
+          {/* Download */}
           <div className="relative">
             <button
               className="gd-icon-btn"
               onClick={() => setDownloadOpen((v) => !v)}
-              aria-label="More"
+              aria-label="Download"
               title="Download"
             >
-              <MoreVertical size={20} />
+              <Download size={18} />
             </button>
             {downloadOpen && (
               <>
@@ -282,21 +251,18 @@ export default function DocumentPage() {
                   className="fixed inset-0 z-10"
                   onClick={() => setDownloadOpen(false)}
                 />
-                <div className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg border border-[#dadce0] bg-white py-1 shadow-[0_4px_20px_rgba(60,64,67,0.2)]">
-                  <p className="px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-[#5f6368]">
-                    Download
-                  </p>
+                <div className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                   <button
                     onClick={() => handleDownload("txt")}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-[#f1f3f4]"
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                   >
                     Plain text (.txt)
                   </button>
                   <button
                     onClick={() => handleDownload("pdf")}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-[#f1f3f4]"
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    PDF document (.pdf)
+                    PDF (.pdf)
                   </button>
                 </div>
               </>

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Search, Trash2, MoreVertical, FileText, X } from "lucide-react";
+import { Search, Trash2, MoreVertical, FileText, X, Plus } from "lucide-react";
 
 import { DocsLogo } from "@/components/DocsLogo";
 import { getMe, logout, User } from "@/services/auth.service";
@@ -29,7 +29,7 @@ function formatDate(value: string) {
 
 function Avatar({ user, size = 32 }: { user: User | null; size?: number }) {
   const initial = (user?.name || user?.email || "U").charAt(0).toUpperCase();
-  const bg = "#7e57c2";
+  const bg = "#6366f1";
   if (user?.avatar) {
     return (
       <span className="gd-avatar" style={{ width: size, height: size }}>
@@ -45,23 +45,6 @@ function Avatar({ user, size = 32 }: { user: User | null; size?: number }) {
     >
       {initial}
     </span>
-  );
-}
-
-/** A small faux page thumbnail so cards look like Google Docs. */
-function DocThumbnail() {
-  return (
-    <div className="flex h-40 items-start justify-center overflow-hidden bg-white p-4">
-      <div className="w-full space-y-2">
-        <div className="h-2 w-1/2 rounded bg-[#e8eaed]" />
-        <div className="mt-3 h-1.5 w-full rounded bg-[#f1f3f4]" />
-        <div className="h-1.5 w-11/12 rounded bg-[#f1f3f4]" />
-        <div className="h-1.5 w-full rounded bg-[#f1f3f4]" />
-        <div className="h-1.5 w-4/5 rounded bg-[#f1f3f4]" />
-        <div className="h-1.5 w-full rounded bg-[#f1f3f4]" />
-        <div className="h-1.5 w-2/3 rounded bg-[#f1f3f4]" />
-      </div>
-    </div>
   );
 }
 
@@ -85,36 +68,34 @@ function DocCard({
   return (
     <div
       onClick={onOpen}
-      className="group relative flex cursor-pointer flex-col rounded-lg border border-[#dadce0] bg-white text-left transition hover:border-[#1a73e8]"
+      className="group relative flex cursor-pointer flex-col rounded-lg border border-gray-200 bg-white text-left transition hover:border-indigo-300 hover:shadow-sm"
     >
-      <div className="overflow-hidden rounded-t-lg border-b border-[#e8eaed]">
-        <DocThumbnail />
-      </div>
-      <div className="flex items-start gap-2 px-4 py-3">
-        <FileText size={18} className="mt-0.5 shrink-0 text-[#4285f4]" />
+      <div className="flex items-start gap-3 px-4 py-4">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50">
+          <FileText size={18} className="text-indigo-500" />
+        </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-[#202124]">
+          <p className="truncate text-sm font-medium text-gray-900">
             {doc.title || "Untitled document"}
           </p>
-          <p className="mt-0.5 text-xs text-[#5f6368]">
+          <p className="mt-1 text-xs text-gray-400">
             {badge ? `${badge} · ` : ""}
             {formatDate(doc.updatedAt)}
           </p>
         </div>
 
-        {/* Overflow menu */}
         <span className="relative">
           <button
             onClick={(e) => {
               e.stopPropagation();
               setMenuOpen((v) => !v);
             }}
-            className={`rounded-full p-1.5 text-[#5f6368] transition hover:bg-[#f1f3f4] group-hover:opacity-100 ${
+            className={`rounded-md p-1.5 text-gray-400 transition hover:bg-gray-100 group-hover:opacity-100 ${
               menuOpen ? "opacity-100" : "opacity-0"
             }`}
             aria-label="More options"
           >
-            <MoreVertical size={18} />
+            <MoreVertical size={16} />
           </button>
 
           {menuOpen && (
@@ -127,10 +108,10 @@ function DocCard({
                 }}
               />
               <div
-                className="absolute right-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-[#dadce0] bg-white py-1 shadow-[0_4px_20px_rgba(60,64,67,0.2)]"
+                className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
                 onClick={(e) => e.stopPropagation()}
               >
-                <p className="px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-[#5f6368]">
+                <p className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-gray-400">
                   Download
                 </p>
                 <button
@@ -138,25 +119,25 @@ function DocCard({
                     onDownload("pdf");
                     setMenuOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-[#202124] hover:bg-[#f1f3f4]"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  <FileText size={16} className="text-[#5f6368]" />
-                  PDF document (.pdf)
+                  <FileText size={14} className="text-gray-400" />
+                  PDF
                 </button>
                 <button
                   onClick={() => {
                     onDownload("txt");
                     setMenuOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-[#202124] hover:bg-[#f1f3f4]"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  <FileText size={16} className="text-[#5f6368]" />
-                  Plain text (.txt)
+                  <FileText size={14} className="text-gray-400" />
+                  Plain text
                 </button>
 
                 {onDelete && (
                   <>
-                    <div className="my-1 h-px bg-[#e8eaed]" />
+                    <div className="my-1 h-px bg-gray-100" />
                     <button
                       onClick={(e) => {
                         if (deleting) return;
@@ -164,10 +145,10 @@ function DocCard({
                         setMenuOpen(false);
                       }}
                       disabled={deleting}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-[#d93025] hover:bg-[#fce8e6] disabled:opacity-50"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
                     >
-                      <Trash2 size={16} />
-                      Remove
+                      <Trash2 size={14} />
+                      Delete
                     </button>
                   </>
                 )}
@@ -303,7 +284,7 @@ export default function DashboardPage() {
 
   const handleDeleteDocument = async (e: React.MouseEvent, docId: string) => {
     e.stopPropagation();
-    if (!confirm("Move this document to trash?")) return;
+    if (!confirm("Delete this document?")) return;
 
     setDeletingId(docId);
     try {
@@ -323,34 +304,34 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="gd-font flex min-h-screen items-center justify-center text-[#5f6368]">
-        Loading…
+      <div className="app-font flex min-h-screen items-center justify-center text-gray-400">
+        Loading...
       </div>
     );
   }
 
   return (
-    <div className="gd-font min-h-screen bg-white text-[#202124]">
-      {/* Top app bar */}
-      <header className="sticky top-0 z-20 flex items-center gap-4 border-b border-[#e0e0e0] bg-white px-4 py-2 md:px-6">
+    <div className="app-font min-h-screen bg-[#fafafa] text-gray-900">
+      {/* Header */}
+      <header className="sticky top-0 z-20 flex items-center gap-4 border-b border-gray-200 bg-white px-4 py-2 md:px-6">
         <div className="flex shrink-0 items-center gap-2">
-          <DocsLogo size={30} />
-          <span className="hidden text-[22px] text-[#5f6368] sm:inline">
+          <DocsLogo size={26} />
+          <span className="hidden text-base font-semibold text-gray-900 sm:inline">
             Docs
           </span>
         </div>
 
-        <div className="mx-auto flex w-full max-w-2xl items-center gap-3 rounded-lg bg-[#f1f3f4] px-4 py-2.5 focus-within:bg-white focus-within:shadow-[0_1px_3px_rgba(60,64,67,0.25)]">
-          <Search size={20} className="text-[#5f6368]" />
+        <div className="mx-auto flex w-full max-w-xl items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-indigo-300 focus-within:bg-white">
+          <Search size={16} className="text-gray-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search"
-            className="w-full bg-transparent text-[15px] text-[#202124] outline-none placeholder:text-[#5f6368]"
+            placeholder="Search documents..."
+            className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400"
           />
           {search && (
             <button onClick={() => setSearch("")} aria-label="Clear search">
-              <X size={18} className="text-[#5f6368]" />
+              <X size={16} className="text-gray-400" />
             </button>
           )}
         </div>
@@ -358,7 +339,7 @@ export default function DashboardPage() {
         <div className="relative shrink-0">
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            className="rounded-full transition hover:ring-4 hover:ring-[#f1f3f4]"
+            className="rounded-full transition hover:ring-2 hover:ring-gray-200"
             aria-label="Account"
           >
             <Avatar user={user} />
@@ -369,19 +350,19 @@ export default function DashboardPage() {
                 className="fixed inset-0 z-10"
                 onClick={() => setMenuOpen(false)}
               />
-              <div className="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-xl border border-[#dadce0] bg-white shadow-[0_4px_20px_rgba(60,64,67,0.2)]">
-                <div className="flex items-center gap-3 border-b border-[#e8eaed] px-4 py-4">
-                  <Avatar user={user} size={40} />
+              <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+                <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-3">
+                  <Avatar user={user} size={36} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{user?.name}</p>
-                    <p className="truncate text-xs text-[#5f6368]">
+                    <p className="truncate text-xs text-gray-400">
                       {user?.email}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="w-full px-4 py-3 text-left text-sm text-[#202124] hover:bg-[#f1f3f4]"
+                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
                   Sign out
                 </button>
@@ -391,53 +372,37 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* Start a new document band */}
-      <section className="border-b border-[#e0e0e0] bg-[#f1f3f4]">
-        <div className="mx-auto max-w-5xl px-6 py-6">
-          <h2 className="mb-4 text-sm font-medium text-[#202124]">
-            Start a new document
-          </h2>
+      {/* New document */}
+      <section className="border-b border-gray-200 bg-white">
+        <div className="mx-auto max-w-4xl px-6 py-5">
           <button
             onClick={handleCreateDocument}
             disabled={isCreating}
-            className="group flex w-[150px] flex-col items-stretch text-left"
+            className="inline-flex items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-5 py-3 text-sm font-medium text-gray-600 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50"
           >
-            <div className="flex h-[184px] items-center justify-center rounded-lg border border-[#dadce0] bg-white transition group-hover:border-[#1a73e8]">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M12 5v14M5 12h14"
-                  stroke="#1a73e8"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </div>
-            <span className="mt-2 px-1 text-sm font-medium text-[#202124]">
-              {isCreating ? "Creating…" : "Blank document"}
-            </span>
+            <Plus size={18} />
+            {isCreating ? "Creating..." : "New document"}
           </button>
         </div>
       </section>
 
       {/* Recent documents */}
-      <section className="mx-auto max-w-5xl px-6 py-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-medium text-[#202124]">
-            {search ? "Search results" : "Recent documents"}
-          </h2>
-        </div>
+      <section className="mx-auto max-w-4xl px-6 py-6">
+        <h2 className="mb-4 text-sm font-medium text-gray-500">
+          {search ? "Search results" : "Recent documents"}
+        </h2>
 
         {documents.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-[#dadce0] py-16 text-center">
-            <FileText size={40} className="mb-3 text-[#dadce0]" />
-            <p className="text-sm text-[#5f6368]">
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 py-16 text-center">
+            <FileText size={36} className="mb-3 text-gray-300" />
+            <p className="text-sm text-gray-400">
               {search
                 ? "No documents match your search"
-                : "No documents yet — create your first one above"}
+                : "No documents yet. Create your first one above."}
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {documents.map((doc) => (
               <DocCard
                 key={doc.id}
@@ -456,11 +421,11 @@ export default function DashboardPage() {
 
       {/* Shared with me */}
       {sharedDocuments.length > 0 && (
-        <section className="mx-auto max-w-5xl px-6 pb-12">
-          <h2 className="mb-4 text-base font-medium text-[#202124]">
+        <section className="mx-auto max-w-4xl px-6 pb-12">
+          <h2 className="mb-4 text-sm font-medium text-gray-500">
             Shared with me
           </h2>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {sharedDocuments.map((doc) => (
               <DocCard
                 key={doc.id}

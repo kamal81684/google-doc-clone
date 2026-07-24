@@ -16,7 +16,7 @@ interface ShareDialogProps {
 }
 
 const AVATAR_COLORS = [
-  "#1a73e8", "#d93025", "#188038", "#e37400", "#7e57c2", "#00897b",
+  "#6366f1", "#ec4899", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4",
 ];
 
 function colorFor(seed: string) {
@@ -80,39 +80,39 @@ export default function ShareDialog({
   if (!open) return null;
 
   return (
-    <div className="gd-font fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-[0_8px_40px_rgba(0,0,0,0.3)]">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5">
-          <h2 className="text-xl font-normal text-[#202124]">Share document</h2>
+        <div className="flex items-center justify-between px-5 pt-5">
+          <h2 className="text-base font-semibold text-gray-900">Share document</h2>
           <button
             onClick={onClose}
             className="gd-icon-btn"
             aria-label="Close"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Add people */}
-        <div className="px-6 pt-4">
+        <div className="px-5 pt-4">
           <div className="flex items-center gap-2">
             <input
               type="email"
-              placeholder="Add people by email"
+              placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleShare();
               }}
-              className="flex-1 rounded-md border border-[#dadce0] px-3 py-2.5 text-sm outline-none focus:border-[#1a73e8]"
+              className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:bg-white"
             />
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as "VIEWER" | "EDITOR")}
-              className="rounded-md border border-[#dadce0] px-2 py-2.5 text-sm outline-none focus:border-[#1a73e8]"
+              className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-sm outline-none focus:border-indigo-400"
             >
               <option value="VIEWER">Viewer</option>
               <option value="EDITOR">Editor</option>
@@ -121,28 +121,28 @@ export default function ShareDialog({
               onClick={handleShare}
               disabled={loading}
               className="gd-btn-primary"
-              style={{ paddingLeft: 20, paddingRight: 20 }}
+              style={{ paddingLeft: 16, paddingRight: 16 }}
             >
-              {loading ? "Sharing…" : "Share"}
+              {loading ? "Sharing..." : "Share"}
             </button>
           </div>
         </div>
 
         {/* People with access */}
-        <div className="mt-5 px-6">
-          <h3 className="mb-1 text-sm font-medium text-[#202124]">
+        <div className="mt-5 px-5">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-400">
             People with access
           </h3>
-          <div className="max-h-64 overflow-y-auto pb-2">
+          <div className="max-h-56 overflow-y-auto pb-2">
             {sharedUsers.length === 0 ? (
-              <p className="py-3 text-sm text-[#5f6368]">
-                Only you have access so far.
+              <p className="py-3 text-sm text-gray-400">
+                Only you have access.
               </p>
             ) : (
               sharedUsers.map((user) => (
                 <div
                   key={user.userId}
-                  className="flex items-center gap-3 py-2.5"
+                  className="flex items-center gap-3 py-2"
                 >
                   <span
                     className="gd-avatar"
@@ -151,14 +151,14 @@ export default function ShareDialog({
                     {(user.name || user.email).charAt(0).toUpperCase()}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-[#202124]">
+                    <p className="truncate text-sm font-medium text-gray-900">
                       {user.name}
                     </p>
-                    <p className="truncate text-xs text-[#5f6368]">
+                    <p className="truncate text-xs text-gray-400">
                       {user.email}
                     </p>
                   </div>
-                  <span className="text-xs text-[#5f6368]">
+                  <span className="text-xs text-gray-400">
                     {user.role === "EDITOR" ? "Editor" : "Viewer"}
                   </span>
                 </div>
@@ -168,12 +168,12 @@ export default function ShareDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 border-t border-[#e8eaed] px-6 py-4">
+        <div className="flex justify-end gap-2 border-t border-gray-100 px-5 py-4">
           <button
             onClick={onClose}
-            className="flex items-center gap-2 rounded-full bg-[#1a73e8] px-6 py-2 text-sm font-medium text-white hover:bg-[#1765cc]"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
-            <Check size={16} />
+            <Check size={14} />
             Done
           </button>
         </div>

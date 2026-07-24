@@ -43,4 +43,5 @@ declare module "lucide-react" {
   export const Clock: Icon;
   export const Lock: Icon;
   export const SortDesc: Icon;
+  export const Download: Icon;
 }

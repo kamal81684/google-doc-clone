@@ -76,7 +76,7 @@ export function RegisterForm() {
             <FormItem>
               <FormLabel>Full Name</FormLabel>
               <FormControl>
-                <Input placeholder="Enter your name" {...field} />
+                <Input placeholder="Your name" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -89,7 +89,7 @@ export function RegisterForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="Enter your email" type="email" {...field} />
+                <Input placeholder="you@example.com" type="email" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -103,7 +103,7 @@ export function RegisterForm() {
               <FormLabel>Password</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="Enter your password"
+                  placeholder="At least 6 characters"
                   type="password"
                   {...field}
                 />
@@ -120,7 +120,7 @@ export function RegisterForm() {
               <FormLabel>Confirm Password</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="Confirm your password"
+                  placeholder="Repeat your password"
                   type="password"
                   {...field}
                 />
@@ -131,7 +131,7 @@ export function RegisterForm() {
         />
         <Button
           type="submit"
-          className="w-full rounded-full bg-[#1a73e8] text-white hover:bg-[#1765cc]"
+          className="w-full bg-indigo-600 text-white hover:bg-indigo-700"
           disabled={isLoading}
         >
           {isLoading ? "Creating account..." : "Create account"}
