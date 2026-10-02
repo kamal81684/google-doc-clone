@@ -3,7 +3,7 @@ import prisma from "../config/prisma";
 import { EMBEDDING_MODEL, isEmbeddingEnabled } from "../config/ai";
 import { getLoadedYDoc } from "../config/yjsPersistence";
 import { extractDocumentText, extractTextFromYDoc } from "../utils/documentExport";
-import { embedTexts, toVectorLiteral } from "./embedding.service";
+import { EmbeddingRateLimitError, embedTexts, toVectorLiteral } from "./embedding.service";
 
 const CHUNK_SIZE = 1200;
 const CHUNK_OVERLAP = 200;
@@ -161,6 +161,8 @@ export const indexDocument = (documentId: string): Promise<void> => {
 /** Fire-and-forget indexing for save hooks; failures are logged, never thrown. */
 export const scheduleIndexDocument = (documentId: string) => {
     indexDocument(documentId).catch((error) => {
+        // Rate-limited docs stay stale and are picked up by the next ensureUserIndexed pass
+        if (error instanceof EmbeddingRateLimitError) return;
         console.error(`Failed to index document ${documentId}:`, error.message);
     });
 };
@@ -196,16 +198,22 @@ export const ensureUserIndexed = async (userId: string, maxDocs = 25) => {
             getLoadedYDoc(d.id) !== undefined
     );
 
+    let indexed = 0;
     for (const doc of stale.slice(0, maxDocs)) {
         try {
             await indexDocument(doc.id);
+            indexed++;
         } catch (error: any) {
+            if (error instanceof EmbeddingRateLimitError) {
+                // Every remaining doc would fail too; leave them stale for the next pass
+                break;
+            }
             console.error(`Failed to index document ${doc.id}:`, error.message);
         }
     }
 
     return {
         total: docs.length,
-        pending: Math.max(0, stale.length - maxDocs),
+        pending: stale.length - indexed,
     };
 };

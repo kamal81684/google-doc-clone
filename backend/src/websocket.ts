@@ -16,9 +16,10 @@ const messageAwareness = 1;
 const messageQueryAwareness = 3;
 
 interface ConnMeta {
-  userId: string;
+  userId: string | null;
   userName: string;
   documentId: string;
+  readOnly: boolean;
 }
 
 const conns = new Map<WebSocket, ConnMeta>();
@@ -30,13 +31,19 @@ function handleMessage(
   docName: string,
   ydoc: Y.Doc,
   awareness: awarenessProtocol.Awareness,
-  sender: WebSocket
+  sender: WebSocket,
+  readOnly: boolean
 ) {
   const decoder = decoding.createDecoder(data);
   const messageType = decoding.readVarUint(decoder);
 
   switch (messageType) {
     case messageSync: {
+      // Viewers may ask for the document (sync step 1) but their edits are dropped:
+      // the editor's read-only mode is only a UI hint, this is the enforcement
+      if (readOnly && decoding.peekVarUint(decoder) !== syncProtocol.messageYjsSyncStep1) {
+        break;
+      }
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, messageSync);
       syncProtocol.readSyncMessage(decoder, encoder, ydoc, null);
@@ -104,39 +111,37 @@ export const setupWebSocket = (server: any) => {
         return acc;
       }, {});
 
+    // No (valid) session is fine: link sharing can open a document to anonymous visitors,
+    // and checkDocumentAccess decides
+    let userId: string | null = null;
+    let userName = "Anonymous";
     const token = cookies.token;
-    if (!token) {
-      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-      socket.destroy();
-      return;
-    }
-
-    let userId: string;
-    let userName: string;
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as {
-        id: string;
-        name?: string;
-        email?: string;
-      };
-      userId = decoded.id;
-      userName = decoded.name || decoded.email || "Anonymous";
-    } catch {
-      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-      socket.destroy();
-      return;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as {
+          id: string;
+          name?: string;
+          email?: string;
+        };
+        userId = decoded.id;
+        userName = decoded.name || decoded.email || "Anonymous";
+      } catch {
+        // Expired or invalid session: continue as an anonymous visitor
+      }
     }
 
     checkDocumentAccess(docName, userId)
       .then((access) => {
         if (!access) {
-          socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+          const status = userId ? "403 Forbidden" : "401 Unauthorized";
+          socket.write(`HTTP/1.1 ${status}\r\n\r\n`);
           socket.destroy();
           return;
         }
 
+        const readOnly = access === "VIEWER";
         wss.handleUpgrade(req, socket, head, (ws) => {
-          wss.emit("connection", ws, req, { userId, userName, docName });
+          wss.emit("connection", ws, req, { userId, userName, docName, readOnly });
         });
       })
       .catch(() => {
@@ -150,9 +155,9 @@ export const setupWebSocket = (server: any) => {
     async (
       ws: WebSocket,
       _req: IncomingMessage,
-      meta: { userId: string; userName: string; docName: string }
+      meta: { userId: string | null; userName: string; docName: string; readOnly: boolean }
     ) => {
-      const { userId, userName, docName } = meta;
+      const { userId, userName, docName, readOnly } = meta;
       let ydoc: Y.Doc;
       try {
         ydoc = await getYDoc(docName);
@@ -171,7 +176,7 @@ export const setupWebSocket = (server: any) => {
       }
       const awareness = docAwareness.get(docName)!;
 
-      conns.set(ws, { userId, userName, documentId: docName });
+      conns.set(ws, { userId, userName, documentId: docName, readOnly });
       if (!docConns.has(docName)) {
         docConns.set(docName, new Set());
       }
@@ -239,7 +244,7 @@ export const setupWebSocket = (server: any) => {
           message.byteOffset,
           message.length
         );
-        handleMessage(data, docName, ydoc, awareness, ws);
+        handleMessage(data, docName, ydoc, awareness, ws, readOnly);
       });
 
       ws.on("close", async () => {

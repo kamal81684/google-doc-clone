@@ -11,6 +11,12 @@ import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { WebsocketProvider } from "y-websocket";
 import type { Doc as YDoc } from "yjs";
 import { ChevronDown, Check } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const COLORS = [
   "#30bced", "#6eeb83", "#ffbc42", "#ecd444",
@@ -93,7 +99,6 @@ function EditorInner({
 }) {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
-  const [styleOpen, setStyleOpen] = useState(false);
 
   const userColor = useMemo(() => {
     let hash = 0;
@@ -189,57 +194,39 @@ function EditorInner({
             <Divider />
 
             {/* Text style dropdown */}
-            <div className="relative">
-              <button
-                type="button"
+            <DropdownMenu>
+              <DropdownMenuTrigger
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setStyleOpen((v) => !v)}
-                className="flex h-8 items-center gap-1 rounded-md px-2 text-sm text-gray-600 hover:bg-gray-100"
+                className="flex h-8 items-center gap-1 rounded-md px-2 text-sm text-gray-600 outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-indigo-200 data-popup-open:bg-gray-100"
+                aria-label="Text style"
               >
                 <span className="min-w-[80px] text-left text-xs">{currentStyle}</span>
                 <ChevronDown size={14} />
-              </button>
-              {styleOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setStyleOpen(false)}
-                  />
-                  <div className="absolute left-0 z-20 mt-1 w-48 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-                    {TEXT_STYLES.map((s) => {
-                      const active = s.isActive(editor);
-                      return (
-                        <button
-                          key={s.label}
-                          onClick={() => {
-                            s.run(editor);
-                            setStyleOpen(false);
-                          }}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          <span className="w-4 text-indigo-500">
-                            {active && <Check size={14} />}
-                          </span>
-                          <span
-                            className={
-                              s.label === "Heading 1"
-                                ? "text-lg font-bold"
-                                : s.label === "Heading 2"
-                                ? "text-base font-semibold"
-                                : s.label === "Heading 3"
-                                ? "text-sm font-semibold"
-                                : "text-sm"
-                            }
-                          >
-                            {s.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
+              </DropdownMenuTrigger>
+              {/* Commands refocus the editor; don't let the menu pull focus back to its trigger */}
+              <DropdownMenuContent className="w-48" finalFocus={false}>
+                {TEXT_STYLES.map((s) => (
+                  <DropdownMenuItem key={s.label} onClick={() => s.run(editor)} className="py-1.5">
+                    <span className="w-4 text-indigo-500">
+                      {s.isActive(editor) && <Check size={14} />}
+                    </span>
+                    <span
+                      className={
+                        s.label === "Heading 1"
+                          ? "text-lg font-bold"
+                          : s.label === "Heading 2"
+                          ? "text-base font-semibold"
+                          : s.label === "Heading 3"
+                          ? "text-sm font-semibold"
+                          : "text-sm"
+                      }
+                    >
+                      {s.label}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <Divider />
 

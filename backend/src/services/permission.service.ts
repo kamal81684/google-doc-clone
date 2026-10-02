@@ -1,5 +1,5 @@
 import prisma from "../config/prisma";
-import { PermissionRole } from "@prisma/client";
+import { LinkAccess, PermissionRole } from "@prisma/client";
 
 const shareDocumentService = async (
     documentId: string,
@@ -55,32 +55,79 @@ const shareDocumentService = async (
     return permission;
 };
 
+export type AccessRole = "OWNER" | "EDITOR" | "VIEWER";
+
+const ROLE_RANK: Record<AccessRole, number> = { VIEWER: 1, EDITOR: 2, OWNER: 3 };
+
+/**
+ * The caller's role on a document, or null for no access. userId is null for visitors who
+ * aren't signed in; they only get in through the document's link access.
+ */
 const checkDocumentAccess = async (
     documentId: string,
-    userId: string
-): Promise<"OWNER" | "EDITOR" | "VIEWER" | null> => {
+    userId: string | null
+): Promise<AccessRole | null> => {
     const document = await prisma.document.findUnique({
         where: { id: documentId },
+        select: { ownerId: true, linkAccess: true },
     });
 
     if (!document) {
         return null;
     }
 
-    if (document.ownerId === userId) {
+    if (userId && document.ownerId === userId) {
         return "OWNER";
     }
 
-    const permission = await prisma.documentPermission.findUnique({
-        where: {
-            documentId_userId: {
-                documentId,
-                userId,
-            },
-        },
+    const permission = userId
+        ? await prisma.documentPermission.findUnique({
+              where: {
+                  documentId_userId: {
+                      documentId,
+                      userId,
+                  },
+              },
+          })
+        : null;
+
+    const linkRole = document.linkAccess === LinkAccess.RESTRICTED ? null : document.linkAccess;
+
+    // The stronger of a direct share and the link's role
+    const roles = [permission?.role, linkRole].filter(Boolean) as AccessRole[];
+    if (roles.length === 0) return null;
+    return roles.reduce((best, role) => (ROLE_RANK[role] > ROLE_RANK[best] ? role : best));
+};
+
+const setLinkAccessService = async (
+    documentId: string,
+    ownerId: string,
+    linkAccess: string
+) => {
+    if (!Object.values(LinkAccess).includes(linkAccess as LinkAccess)) {
+        throw new Error("Invalid link access. Must be RESTRICTED, VIEWER or EDITOR");
+    }
+
+    const document = await prisma.document.findUnique({
+        where: { id: documentId },
+        select: { ownerId: true },
     });
 
-    return permission ? permission.role : null;
+    if (!document) {
+        throw new Error("Document not found");
+    }
+
+    if (document.ownerId !== ownerId) {
+        throw new Error("You are not the owner of this document");
+    }
+
+    const updated = await prisma.document.update({
+        where: { id: documentId },
+        data: { linkAccess: linkAccess as LinkAccess },
+        select: { linkAccess: true },
+    });
+
+    return updated.linkAccess;
 };
 
 const getDocumentPermissions = async (
@@ -112,12 +159,15 @@ const getDocumentPermissions = async (
         },
     });
 
-    return permissions.map((p) => ({
-        userId: p.user.id,
-        name: p.user.name,
-        email: p.user.email,
-        role: p.role,
-    }));
+    return {
+        linkAccess: document.linkAccess,
+        permissions: permissions.map((p) => ({
+            userId: p.user.id,
+            name: p.user.name,
+            email: p.user.email,
+            role: p.role,
+        })),
+    };
 };
 
-export { shareDocumentService, checkDocumentAccess, getDocumentPermissions };
+export { shareDocumentService, checkDocumentAccess, getDocumentPermissions, setLinkAccessService };

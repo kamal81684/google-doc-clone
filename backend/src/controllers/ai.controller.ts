@@ -1,7 +1,16 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import { isChatEnabled, isEmbeddingEnabled, isTypeSafeEnabled } from "../config/ai";
-import { streamChat } from "../services/chat.service";
+import { ChatSource, streamChat } from "../services/chat.service";
+import {
+    createConversation,
+    deleteConversation,
+    deleteIfEmpty,
+    getConversation,
+    getHistoryForModel,
+    listConversations,
+    saveTurn,
+} from "../services/conversation.service";
 import { ensureUserIndexed } from "../services/indexing.service";
 import {
     applyOrganization,
@@ -10,21 +19,15 @@ import {
 } from "../services/organize.service";
 
 const ChatRequestSchema = z.object({
-    messages: z
-        .array(
-            z.object({
-                role: z.enum(["user", "assistant"]),
-                content: z.string().trim().min(1).max(8000),
-            })
-        )
-        .min(1)
-        .max(50),
+    // Omit to start a new conversation
+    conversationId: z.string().min(1).optional(),
+    message: z.string().trim().min(1).max(8000),
 });
 
 const aiDisabledResponse = (res: Response) =>
     res.status(503).json({
         success: false,
-        message: "AI features are not configured on the server (missing GROQ_API_KEY)",
+        message: "AI features are not configured on the server (missing LLM_API_KEY)",
     });
 
 /** Feature flags for the UI; also kicks off indexing in the background so chat is ready sooner. */
@@ -57,8 +60,23 @@ export const chat = async (req: Request, res: Response) => {
     }
 
     const userId = (req as any).user.id;
+    const { conversationId: requestedId, message } = parsed.data;
 
-    // Server-sent events: "sources", then many "delta", then "done" (or "error")
+    // History comes from the database, not the client
+    let conversation: { id: string; title: string };
+    let history: { role: "user" | "assistant"; content: string }[] = [];
+    if (requestedId) {
+        const existing = await getConversation(userId, requestedId);
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Conversation not found" });
+        }
+        conversation = { id: existing.id, title: existing.title };
+        history = await getHistoryForModel(existing.id);
+    } else {
+        conversation = await createConversation(userId, message);
+    }
+
+    // Server-sent events: "conversation", "sources", maybe "status", then many "delta", then "done" (or "error")
     res.status(200);
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -73,11 +91,22 @@ export const chat = async (req: Request, res: Response) => {
     const abort = new AbortController();
     res.on("close", () => abort.abort());
 
+    send("conversation", conversation);
+
+    let answer = "";
+    let sources: ChatSource[] = [];
     try {
-        await streamChat(userId, parsed.data.messages, {
+        await streamChat(userId, [...history, { role: "user", content: message }], {
             signal: abort.signal,
-            onSources: (sources) => send("sources", sources),
-            onText: (text) => send("delta", { text }),
+            onSources: (s) => {
+                sources = s;
+                send("sources", s);
+            },
+            onThinking: () => send("status", { phase: "thinking" }),
+            onText: (text) => {
+                answer += text;
+                send("delta", { text });
+            },
         });
         send("done", {});
     } catch (error: any) {
@@ -87,6 +116,16 @@ export const chat = async (req: Request, res: Response) => {
         }
     } finally {
         res.end();
+        // Keep any answer the user saw, including one they stopped part-way
+        try {
+            if (answer.trim()) {
+                await saveTurn(conversation.id, message, answer, sources);
+            } else if (!requestedId) {
+                await deleteIfEmpty(conversation.id);
+            }
+        } catch (error: any) {
+            console.error("Failed to save chat turn:", error.message);
+        }
     }
 };
 
@@ -135,4 +174,28 @@ export const applyOrganize = async (req: Request, res: Response) => {
             message: error.message,
         });
     }
+};
+
+export const getConversations = async (req: Request, res: Response) => {
+    const userId = (req as any).user.id;
+    const conversations = await listConversations(userId);
+    return res.status(200).json({ success: true, conversations });
+};
+
+export const getConversationById = async (req: Request, res: Response) => {
+    const userId = (req as any).user.id;
+    const conversation = await getConversation(userId, req.params.id as string);
+    if (!conversation) {
+        return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+    return res.status(200).json({ success: true, conversation });
+};
+
+export const removeConversation = async (req: Request, res: Response) => {
+    const userId = (req as any).user.id;
+    const deleted = await deleteConversation(userId, req.params.id as string);
+    if (!deleted) {
+        return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+    return res.status(200).json({ success: true });
 };

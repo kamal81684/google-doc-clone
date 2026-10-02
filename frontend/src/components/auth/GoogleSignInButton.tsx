@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { GoogleLogin } from "@react-oauth/google";
 import { googleLogin } from "@/services/auth.service";
+import { getPostLoginPath } from "@/lib/redirect";
 
 /**
  * Renders Google's official Sign-In button. Only shows when
@@ -36,7 +37,7 @@ export function GoogleSignInButton() {
             const response = await googleLogin(credential);
             if (response.success) {
               toast.success("Signed in with Google");
-              router.push("/dashboard");
+              router.push(getPostLoginPath());
             } else {
               toast.error(response.message || "Google sign-in failed");
             }

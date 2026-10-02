@@ -1,19 +1,74 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowUp, FileText, Sparkles, X } from "lucide-react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import {
+  ArrowUp,
+  ChevronLeft,
+  FileText,
+  History,
+  MessageSquare,
+  Sparkles,
+  SquarePen,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import {
   AiStatus,
   ChatMessage,
   ChatSource,
+  ConversationSummary,
+  deleteConversation,
+  getConversation,
+  listConversations,
   streamChat,
 } from "@/services/ai.service";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface DisplayMessage extends ChatMessage {
   sources?: ChatSource[];
   error?: boolean;
+  thinking?: boolean;
+}
+
+// Reopening the panel (or reloading the page) continues the last conversation
+const ACTIVE_CONVERSATION_KEY = "docs-chat:active-conversation";
+
+const readActiveConversation = () => {
+  try {
+    return localStorage.getItem(ACTIVE_CONVERSATION_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const writeActiveConversation = (id: string | null) => {
+  try {
+    if (id) localStorage.setItem(ACTIVE_CONVERSATION_KEY, id);
+    else localStorage.removeItem(ACTIVE_CONVERSATION_KEY);
+  } catch {
+    // Storage unavailable (private mode etc.): history still works, just not auto-resume
+  }
+};
+
+/** "Today", "Yesterday", "Previous 7 days", or the month for older chats. */
+function historyGroup(dateString: string) {
+  const date = new Date(dateString);
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const day = 24 * 60 * 60 * 1000;
+  if (date >= startOfToday) return "Today";
+  if (date.getTime() >= startOfToday.getTime() - day) return "Yesterday";
+  if (date.getTime() >= startOfToday.getTime() - 7 * day) return "Previous 7 days";
+  return date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+function shortTime(dateString: string) {
+  const date = new Date(dateString);
+  const isToday = new Date().toDateString() === date.toDateString();
+  return isToday
+    ? date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 const SUGGESTIONS = [
@@ -135,10 +190,15 @@ export function ChatPanel({
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [view, setView] = useState<"chat" | "history">("chat");
+  const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
+  const [loadingConversation, setLoadingConversation] = useState(false);
+  const restoredRef = useRef(false);
+  const confirm = useConfirm();
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const router = useRouter();
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -159,21 +219,86 @@ export function ChatPanel({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  const refreshConversations = useCallback(async () => {
+    try {
+      setConversations(await listConversations());
+    } catch {
+      setConversations((prev) => prev ?? []);
+    }
+  }, []);
+
+  const openConversation = useCallback(async (id: string) => {
+    setView("chat");
+    setLoadingConversation(true);
+    try {
+      const conversation = await getConversation(id);
+      setMessages(
+        conversation.messages.map(({ role, content, sources }) => ({ role, content, sources }))
+      );
+      setConversationId(conversation.id);
+      writeActiveConversation(conversation.id);
+    } catch {
+      // Deleted elsewhere or no longer ours: start fresh
+      setMessages([]);
+      setConversationId(null);
+      writeActiveConversation(null);
+    } finally {
+      setLoadingConversation(false);
+    }
+  }, []);
+
+  // First open: continue the last conversation, and load the list for the empty state
+  useEffect(() => {
+    if (!open || restoredRef.current) return;
+    restoredRef.current = true;
+    // Deferred so the state updates don't run synchronously inside the effect
+    queueMicrotask(() => {
+      const lastId = readActiveConversation();
+      if (lastId) openConversation(lastId);
+      refreshConversations();
+    });
+  }, [open, openConversation, refreshConversations]);
+
+  const startNewChat = () => {
+    if (isStreaming) return;
+    setMessages([]);
+    setConversationId(null);
+    writeActiveConversation(null);
+    setView("chat");
+    setInput("");
+    inputRef.current?.focus();
+  };
+
+  const showHistory = () => {
+    setView("history");
+    refreshConversations();
+  };
+
+  const handleDeleteConversation = async (conversation: ConversationSummary) => {
+    const confirmed = await confirm({
+      title: "Delete this chat?",
+      description: `"${conversation.title}" will be permanently deleted.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      await deleteConversation(conversation.id);
+      setConversations((prev) => prev?.filter((c) => c.id !== conversation.id) ?? null);
+      if (conversation.id === conversationId) startNewChat();
+    } catch {
+      // Leave the list as is; it will resync on the next refresh
+    }
+  };
+
   const updateLast = (update: (m: DisplayMessage) => DisplayMessage) => {
     setMessages((prev) => [...prev.slice(0, -1), update(prev[prev.length - 1]!)]);
   };
 
   const send = async (text: string) => {
     const question = text.trim();
-    if (!question || isStreaming) return;
-
-    // Only send completed, successful turns as history
-    const history: ChatMessage[] = [
-      ...messages
-        .filter((m) => !m.error && m.content)
-        .map(({ role, content }) => ({ role, content })),
-      { role: "user", content: question },
-    ];
+    if (!question || isStreaming || loadingConversation) return;
+    setView("chat");
 
     setMessages((prev) => [
       ...prev,
@@ -186,33 +311,67 @@ export function ChatPanel({
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // Models often emit text in fast bursts; queue it and reveal a few characters per frame
+    // so the answer types out smoothly. Bigger backlogs reveal faster, so it never lags far behind.
+    let pending = "";
+    let streamDone = false;
+    const revealed = new Promise<void>((resolve) => {
+      const tick = () => {
+        if (pending) {
+          const take = Math.max(2, Math.ceil(pending.length / 12));
+          const piece = pending.slice(0, take);
+          pending = pending.slice(take);
+          updateLast((m) => ({ ...m, content: m.content + piece }));
+        }
+        if (streamDone && !pending) resolve();
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
+    let failure: string | null = null;
     try {
-      await streamChat(history, {
+      // The server holds the history; it creates the conversation on the first message
+      await streamChat({ message: question, conversationId }, {
         signal: controller.signal,
+        onConversation: (conversation) => {
+          setConversationId(conversation.id);
+          writeActiveConversation(conversation.id);
+        },
         onSources: (sources) => updateLast((m) => ({ ...m, sources })),
-        onText: (delta) =>
-          updateLast((m) => ({ ...m, content: m.content + delta })),
+        onThinking: () => updateLast((m) => ({ ...m, thinking: true })),
+        onText: (delta) => {
+          pending += delta;
+        },
       });
     } catch (error) {
       if (!controller.signal.aborted) {
-        updateLast((m) => ({
-          ...m,
-          error: true,
-          content:
-            error instanceof Error
-              ? error.message
-              : "Something went wrong. Please try again.",
-        }));
+        failure =
+          error instanceof Error ? error.message : "Something went wrong. Please try again.";
+        pending = "";
       }
     } finally {
+      // Let the queued text finish typing out (or stop right away if the user hit Stop)
+      if (controller.signal.aborted) {
+        const rest = pending;
+        pending = "";
+        if (rest) updateLast((m) => ({ ...m, content: m.content + rest }));
+      }
+      streamDone = true;
+      await revealed;
+      if (failure) {
+        const message = failure;
+        updateLast((m) => ({ ...m, error: true, content: message }));
+      }
       setIsStreaming(false);
       abortRef.current = null;
+      refreshConversations();
     }
   };
 
+  // New tab, so the conversation stays open here
   const openDoc = (id: string) => {
-    onClose();
-    router.push(`/documents/${id}`);
+    window.open(`/documents/${id}`, "_blank", "noopener,noreferrer");
   };
 
   const chatDisabled = status !== null && !status.chatEnabled;
@@ -243,13 +402,28 @@ export function ChatPanel({
               Answers come from your documents and ones shared with you
             </p>
           </div>
-          {messages.length > 0 && !isStreaming && (
-            <button
-              onClick={() => setMessages([])}
-              className="rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
-            >
-              New chat
-            </button>
+          {!chatDisabled && (
+            <>
+              <button
+                onClick={view === "history" ? () => setView("chat") : showHistory}
+                className={`rounded-md p-1.5 hover:bg-gray-100 ${
+                  view === "history" ? "bg-indigo-50 text-indigo-600" : "text-gray-400"
+                }`}
+                aria-label="Chat history"
+                title="Chat history"
+              >
+                <History size={16} />
+              </button>
+              <button
+                onClick={startNewChat}
+                disabled={isStreaming}
+                className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 disabled:opacity-40"
+                aria-label="New chat"
+                title="New chat"
+              >
+                <SquarePen size={16} />
+              </button>
+            </>
           )}
           <button
             onClick={onClose}
@@ -261,11 +435,86 @@ export function ChatPanel({
         </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
-          {chatDisabled ? (
+          {view === "history" && !chatDisabled ? (
+            <div>
+              <button
+                onClick={() => setView("chat")}
+                className="-ml-1 mb-3 inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-xs font-medium text-gray-500 hover:bg-gray-100"
+              >
+                <ChevronLeft size={14} />
+                Back to chat
+              </button>
+              {conversations === null ? (
+                <p className="py-6 text-center text-sm text-gray-400">Loading chats…</p>
+              ) : conversations.length === 0 ? (
+                <div className="mt-6 text-center">
+                  <MessageSquare size={20} className="mx-auto text-gray-300" />
+                  <p className="mt-2 text-sm text-gray-500">No chats yet</p>
+                  <p className="text-xs text-gray-400">
+                    Your conversations will show up here.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(
+                    conversations.reduce<Record<string, ConversationSummary[]>>(
+                      (groups, c) => {
+                        (groups[historyGroup(c.updatedAt)] ??= []).push(c);
+                        return groups;
+                      },
+                      {}
+                    )
+                  ).map(([group, items]) => (
+                    <div key={group}>
+                      <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider text-gray-400">
+                        {group}
+                      </p>
+                      {items.map((c) => (
+                        <div
+                          key={c.id}
+                          className={`group flex items-center gap-2 rounded-lg px-2 py-2 ${
+                            c.id === conversationId ? "bg-indigo-50" : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <button
+                            onClick={() => openConversation(c.id)}
+                            className="min-w-0 flex-1 text-left"
+                          >
+                            <p
+                              className={`truncate text-sm ${
+                                c.id === conversationId
+                                  ? "font-medium text-indigo-700"
+                                  : "text-gray-800"
+                              }`}
+                            >
+                              {c.title}
+                            </p>
+                            <p className="text-[11px] text-gray-400">{shortTime(c.updatedAt)}</p>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteConversation(c)}
+                            className="rounded-md p-1.5 text-gray-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 focus-visible:opacity-100"
+                            aria-label={`Delete chat "${c.title}"`}
+                            title="Delete chat"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : loadingConversation ? (
+            <p className="mt-10 animate-pulse text-center text-sm text-gray-400">
+              Loading conversation…
+            </p>
+          ) : chatDisabled ? (
             <div className="mt-10 rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
               Chat isn&apos;t set up on this server yet. Add an{" "}
               <code className="rounded bg-gray-100 px-1 text-xs">
-                GROQ_API_KEY
+                LLM_API_KEY
               </code>{" "}
               to the backend to turn it on.
             </div>
@@ -289,6 +538,39 @@ export function ChatPanel({
                   </button>
                 ))}
               </div>
+
+              {conversations && conversations.length > 0 && (
+                <div className="mt-8">
+                  <div className="mb-1 flex items-center justify-between">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-gray-400">
+                      Recent chats
+                    </p>
+                    {conversations.length > 3 && (
+                      <button
+                        onClick={showHistory}
+                        className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                      >
+                        View all
+                      </button>
+                    )}
+                  </div>
+                  {conversations.slice(0, 3).map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => openConversation(c.id)}
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-gray-50"
+                    >
+                      <MessageSquare size={14} className="shrink-0 text-gray-400" />
+                      <span className="min-w-0 flex-1 truncate text-sm text-gray-700">
+                        {c.title}
+                      </span>
+                      <span className="shrink-0 text-[11px] text-gray-400">
+                        {shortTime(c.updatedAt)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-5">
@@ -309,7 +591,11 @@ export function ChatPanel({
                       <AssistantContent message={m} onOpenDoc={openDoc} />
                     ) : (
                       <p className="animate-pulse text-gray-400">
-                        {m.sources ? "Writing…" : "Searching your documents…"}
+                        {m.thinking
+                          ? "Thinking…"
+                          : m.sources
+                            ? "Writing…"
+                            : "Searching your documents…"}
                       </p>
                     )}
 

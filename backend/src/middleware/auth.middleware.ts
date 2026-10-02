@@ -38,3 +38,25 @@ export const isAuthenticated = (
 
     }
 };
+
+/**
+ * Like isAuthenticated, but lets visitors without a valid session through (req.user unset),
+ * for routes that link sharing opens up to anyone.
+ */
+export const optionalAuth = (
+    req: Request,
+    _res: Response,
+    next: NextFunction
+) => {
+    const token = req.cookies.token;
+
+    if (token) {
+        try {
+            (req as any).user = jwt.verify(token, process.env.JWT_SECRET as string);
+        } catch {
+            // Expired or invalid session: continue as an anonymous visitor
+        }
+    }
+
+    next();
+};

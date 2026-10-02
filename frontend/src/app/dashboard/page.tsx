@@ -17,11 +17,25 @@ import {
   FolderPlus,
   FolderInput,
   Pencil,
+  LogOut,
 } from "lucide-react";
 
 import { DocsLogo } from "@/components/DocsLogo";
 import { ChatPanel } from "@/components/ChatPanel";
 import { OrganizeDialog } from "@/components/OrganizeDialog";
+import { useConfirm } from "@/components/ConfirmProvider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { getMe, logout, User } from "@/services/auth.service";
 import {
   createDocument,
@@ -100,7 +114,6 @@ function DocCard({
   deleting?: boolean;
 }) {
   const folderName = folders?.find((f) => f.id === doc.folderId)?.name;
-  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div
@@ -122,116 +135,82 @@ function DocCard({
           </p>
         </div>
 
-        <span className="relative">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpen((v) => !v);
-            }}
-            className={`rounded-md p-1.5 text-gray-400 transition hover:bg-gray-100 group-hover:opacity-100 ${
-              menuOpen ? "opacity-100" : "opacity-0"
-            }`}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            // The card itself opens the document; keep menu clicks from reaching it
+            onClick={(e) => e.stopPropagation()}
+            className="rounded-md p-1.5 text-gray-400 opacity-0 transition outline-none hover:bg-gray-100 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-indigo-200 data-popup-open:bg-gray-100 data-popup-open:opacity-100"
             aria-label="More options"
           >
             <MoreVertical size={16} />
-          </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="w-52"
+            // React events bubble through portals, so stop them at the menu too
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Download</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => onDownload("pdf")}>
+                <FileText size={14} className="text-gray-400" />
+                PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDownload("txt")}>
+                <FileText size={14} className="text-gray-400" />
+                Plain text
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
 
-          {menuOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-10"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpen(false);
-                }}
-              />
-              <div
-                className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <p className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-gray-400">
-                  Download
-                </p>
-                <button
-                  onClick={() => {
-                    onDownload("pdf");
-                    setMenuOpen(false);
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  <FileText size={14} className="text-gray-400" />
-                  PDF
-                </button>
-                <button
-                  onClick={() => {
-                    onDownload("txt");
-                    setMenuOpen(false);
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  <FileText size={14} className="text-gray-400" />
-                  Plain text
-                </button>
-
-                {onMove && folders && (folders.length > 0 || doc.folderId) && (
-                  <>
-                    <div className="my-1 h-px bg-gray-100" />
-                    <p className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-gray-400">
-                      Move to folder
-                    </p>
-                    <div className="max-h-48 overflow-y-auto">
-                      {folders
-                        .filter((f) => f.id !== doc.folderId)
-                        .map((f) => (
-                          <button
-                            key={f.id}
-                            onClick={() => {
-                              onMove(f.id);
-                              setMenuOpen(false);
-                            }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            <FolderInput size={14} className="shrink-0 text-gray-400" />
-                            <span className="truncate">{f.name}</span>
-                          </button>
-                        ))}
-                    </div>
+            {onMove && folders && (folders.length > 0 || doc.folderId) && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <FolderInput size={14} className="text-gray-400" />
+                    Move to folder
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent
+                    className="max-h-64 w-48"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {folders
+                      .filter((f) => f.id !== doc.folderId)
+                      .map((f) => (
+                        <DropdownMenuItem key={f.id} onClick={() => onMove(f.id)}>
+                          <FolderIcon size={14} className="text-gray-400" />
+                          <span className="truncate">{f.name}</span>
+                        </DropdownMenuItem>
+                      ))}
                     {doc.folderId && (
-                      <button
-                        onClick={() => {
-                          onMove(null);
-                          setMenuOpen(false);
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        <X size={14} className="text-gray-400" />
-                        Remove from folder
-                      </button>
+                      <>
+                        {folders.length > 1 && <DropdownMenuSeparator />}
+                        <DropdownMenuItem onClick={() => onMove(null)}>
+                          <X size={14} className="text-gray-400" />
+                          Remove from folder
+                        </DropdownMenuItem>
+                      </>
                     )}
-                  </>
-                )}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </>
+            )}
 
-                {onDelete && (
-                  <>
-                    <div className="my-1 h-px bg-gray-100" />
-                    <button
-                      onClick={(e) => {
-                        if (deleting) return;
-                        onDelete(e);
-                        setMenuOpen(false);
-                      }}
-                      disabled={deleting}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      <Trash2 size={14} />
-                      Delete
-                    </button>
-                  </>
-                )}
-              </div>
-            </>
-          )}
-        </span>
+            {onDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={deleting}
+                  onClick={(e) => onDelete(e)}
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
@@ -245,7 +224,6 @@ export default function DashboardPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [activeFolder, setActiveFolder] = useState<FolderFilter>("all");
   const [folderNameDraft, setFolderNameDraft] = useState<string | null>(null);
@@ -253,6 +231,7 @@ export default function DashboardPage() {
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [organizeOpen, setOrganizeOpen] = useState(false);
+  const confirm = useConfirm();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
 
@@ -383,7 +362,16 @@ export default function DashboardPage() {
 
   const handleDeleteDocument = async (e: React.MouseEvent, docId: string) => {
     e.stopPropagation();
-    if (!confirm("Delete this document?")) return;
+    const doc = documents.find((d) => d.id === docId);
+    const confirmed = await confirm({
+      title: "Delete this document?",
+      description: doc?.title
+        ? `"${doc.title}" will be permanently deleted. This can't be undone.`
+        : "This document will be permanently deleted. This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
 
     setDeletingId(docId);
     try {
@@ -444,12 +432,13 @@ export default function DashboardPage() {
   };
 
   const handleDeleteFolder = async (folder: Folder) => {
-    if (
-      !confirm(
-        `Delete the folder "${folder.name}"? Its documents won't be deleted; they'll become unfiled.`
-      )
-    )
-      return;
+    const confirmed = await confirm({
+      title: `Delete the folder "${folder.name}"?`,
+      description: "Its documents won't be deleted; they'll become unfiled.",
+      confirmLabel: "Delete folder",
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await deleteFolder(folder.id);
       setDocuments((prev) =>
@@ -523,40 +512,28 @@ export default function DashboardPage() {
           <span className="hidden md:inline">Ask your docs</span>
         </button>
 
-        <div className="relative shrink-0">
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            className="rounded-full transition hover:ring-2 hover:ring-gray-200"
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="shrink-0 rounded-full transition outline-none hover:ring-2 hover:ring-gray-200 focus-visible:ring-2 focus-visible:ring-indigo-200 data-popup-open:ring-2 data-popup-open:ring-gray-200"
             aria-label="Account"
           >
             <Avatar user={user} />
-          </button>
-          {menuOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-10"
-                onClick={() => setMenuOpen(false)}
-              />
-              <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-                <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-3">
-                  <Avatar user={user} size={36} />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{user?.name}</p>
-                    <p className="truncate text-xs text-gray-400">
-                      {user?.email}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  Sign out
-                </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            <div className="flex items-center gap-3 px-2 py-2">
+              <Avatar user={user} size={36} />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{user?.name}</p>
+                <p className="truncate text-xs text-gray-400">{user?.email}</p>
               </div>
-            </>
-          )}
-        </div>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout}>
+              <LogOut size={14} className="text-gray-400" />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       {/* New document */}

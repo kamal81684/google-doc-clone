@@ -5,11 +5,26 @@ const BATCH_SIZE = 64;
 
 type InputType = "document" | "query";
 
+// Voyage's free tier allows only 3 requests per minute. After a 429, skip calls until the
+// window has passed instead of firing more requests that are guaranteed to fail.
+const RATE_LIMIT_COOLDOWN_MS = 60_000;
+let rateLimitedUntil = 0;
+
+export class EmbeddingRateLimitError extends Error {
+    constructor(public retryAt: number) {
+        super(`Embedding rate limit hit; retrying after ${new Date(retryAt).toISOString()}`);
+    }
+}
+
 interface VoyageResponse {
     data: { embedding: number[]; index: number }[];
 }
 
 const embedBatch = async (inputs: string[], inputType: InputType) => {
+    if (Date.now() < rateLimitedUntil) {
+        throw new EmbeddingRateLimitError(rateLimitedUntil);
+    }
+
     const response = await fetch(VOYAGE_URL, {
         method: "POST",
         headers: {
@@ -23,6 +38,14 @@ const embedBatch = async (inputs: string[], inputType: InputType) => {
             output_dimension: EMBEDDING_DIMENSIONS,
         }),
     });
+
+    if (response.status === 429) {
+        const retryAfterSeconds = Number(response.headers.get("retry-after"));
+        rateLimitedUntil =
+            Date.now() +
+            (retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : RATE_LIMIT_COOLDOWN_MS);
+        throw new EmbeddingRateLimitError(rateLimitedUntil);
+    }
 
     if (!response.ok) {
         const body = await response.text();

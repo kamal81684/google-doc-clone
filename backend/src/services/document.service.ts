@@ -13,11 +13,21 @@ export const createDocumentService = async (ownerId: string) => {
     return document;
 };
 
-export const getDocumentByIdService = async (documentId: string, userId: string) => {
+/** No access to a document: 401 asks an anonymous visitor to sign in, 403 means signed in but not shared. */
+export class DocumentAccessError extends Error {
+    constructor(message: string, public status: 401 | 403) {
+        super(message);
+    }
+}
+
+/** userId is null for visitors who aren't signed in (link sharing). */
+export const getDocumentByIdService = async (documentId: string, userId: string | null) => {
     const access = await checkDocumentAccess(documentId, userId);
 
     if (!access) {
-        throw new Error("Document not found or you do not have access");
+        throw userId
+            ? new DocumentAccessError("You don't have access to this document", 403)
+            : new DocumentAccessError("Sign in to open this document", 401);
     }
 
     const document = await prisma.document.findUnique({
@@ -83,7 +93,7 @@ export const getSharedWithMeService = async (userId: string) => {
 
 export const updateDocumentService = async(
     documentId: string,
-    userId: string,
+    userId: string | null,
     title?: string,
     content?: any   // keep param for backward compat but stop using it for content
 ) => {
@@ -95,9 +105,14 @@ export const updateDocumentService = async(
         }
 
         if (title !== undefined) {
+            // Titles are unique per owner, whoever (editor, link visitor) is renaming it
+            const current = await prisma.document.findUnique({
+                where: { id: documentId },
+                select: { ownerId: true },
+            });
             const existing = await prisma.document.findFirst({
                 where: {
-                    ownerId: userId,
+                    ownerId: current?.ownerId ?? "",
                     title,
                     id: { not: documentId },
                 },

@@ -1,5 +1,5 @@
-import dotenv from "dotenv";
-dotenv.config();
+// Must stay the first import: imports are hoisted, and config modules read process.env on load
+import "dotenv/config";
 
 import app from "./app";
 import { setupWebSocket } from "./websocket";

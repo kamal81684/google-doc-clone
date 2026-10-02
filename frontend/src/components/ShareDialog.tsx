@@ -2,12 +2,21 @@
 
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { X, Check } from "lucide-react";
+import { X, Check, Globe, Lock, Link2 } from "lucide-react";
 import {
   shareDocument,
   getDocumentPermissions,
+  setLinkAccess,
+  LinkAccess,
   SharedUser,
 } from "@/services/document.services";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface ShareDialogProps {
   documentId: string;
@@ -18,6 +27,9 @@ interface ShareDialogProps {
 const AVATAR_COLORS = [
   "#6366f1", "#ec4899", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4",
 ];
+
+const ROLE_ITEMS = { VIEWER: "Viewer", EDITOR: "Editor" };
+const GENERAL_ACCESS_ITEMS = { RESTRICTED: "Restricted", ANYONE: "Anyone with the link" };
 
 function colorFor(seed: string) {
   let hash = 0;
@@ -34,11 +46,14 @@ export default function ShareDialog({
   const [role, setRole] = useState<"VIEWER" | "EDITOR">("VIEWER");
   const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [linkAccess, setLinkAccessState] = useState<LinkAccess>("RESTRICTED");
+  const [savingLinkAccess, setSavingLinkAccess] = useState(false);
 
   const fetchPermissions = useCallback(async () => {
     try {
       const res = await getDocumentPermissions(documentId);
       setSharedUsers(res.permissions);
+      setLinkAccessState(res.linkAccess ?? "RESTRICTED");
     } catch (err) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data
@@ -77,6 +92,38 @@ export default function ShareDialog({
     }
   };
 
+  const handleLinkAccessChange = async (next: LinkAccess) => {
+    const previous = linkAccess;
+    setLinkAccessState(next);
+    setSavingLinkAccess(true);
+    try {
+      await setLinkAccess(documentId, next);
+      toast.success(
+        next === "RESTRICTED"
+          ? "Only people with access can open this link"
+          : `Anyone with the link can ${next === "EDITOR" ? "edit" : "view"}`
+      );
+    } catch (err) {
+      setLinkAccessState(previous);
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || "Failed to update link access";
+      toast.error(message);
+    } finally {
+      setSavingLinkAccess(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    const url = `${window.location.origin}/documents/${documentId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Couldn't copy the link");
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -109,14 +156,22 @@ export default function ShareDialog({
               }}
               className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:bg-white"
             />
-            <select
+            <Select
+              items={ROLE_ITEMS}
               value={role}
-              onChange={(e) => setRole(e.target.value as "VIEWER" | "EDITOR")}
-              className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-sm outline-none focus:border-indigo-400"
+              onValueChange={(value) => value && setRole(value as "VIEWER" | "EDITOR")}
             >
-              <option value="VIEWER">Viewer</option>
-              <option value="EDITOR">Editor</option>
-            </select>
+              <SelectTrigger
+                aria-label="Role"
+                className="h-9 min-w-24 border-gray-200 bg-gray-50 data-[size=default]:h-9"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="VIEWER">Viewer</SelectItem>
+                <SelectItem value="EDITOR">Editor</SelectItem>
+              </SelectContent>
+            </Select>
             <button
               onClick={handleShare}
               disabled={loading}
@@ -136,7 +191,9 @@ export default function ShareDialog({
           <div className="max-h-56 overflow-y-auto pb-2">
             {sharedUsers.length === 0 ? (
               <p className="py-3 text-sm text-gray-400">
-                Only you have access.
+                {linkAccess === "RESTRICTED"
+                  ? "Only you have access."
+                  : "No one added yet. Anyone with the link can still open it."}
               </p>
             ) : (
               sharedUsers.map((user) => (
@@ -167,8 +224,84 @@ export default function ShareDialog({
           </div>
         </div>
 
+        {/* General access */}
+        <div className="mt-3 border-t border-gray-100 px-5 pt-4">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-400">
+            General access
+          </h3>
+          <div className="flex items-center gap-3 py-1">
+            <span
+              className={`flex size-9 shrink-0 items-center justify-center rounded-full ${
+                linkAccess === "RESTRICTED"
+                  ? "bg-gray-100 text-gray-500"
+                  : "bg-green-100 text-green-700"
+              }`}
+            >
+              {linkAccess === "RESTRICTED" ? <Lock size={16} /> : <Globe size={16} />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <Select
+                items={GENERAL_ACCESS_ITEMS}
+                value={linkAccess === "RESTRICTED" ? "RESTRICTED" : "ANYONE"}
+                disabled={savingLinkAccess}
+                onValueChange={(value) => {
+                  const next = value === "RESTRICTED" ? "RESTRICTED" : "VIEWER";
+                  // Picking "Anyone" again shouldn't reset an Editor link back to Viewer
+                  if ((next === "RESTRICTED") !== (linkAccess === "RESTRICTED")) {
+                    handleLinkAccessChange(next);
+                  }
+                }}
+              >
+                <SelectTrigger
+                  aria-label="Who can open this link"
+                  className="-ml-2 h-7 border-transparent px-2 font-medium text-gray-900 hover:bg-gray-50 data-[size=default]:h-7"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="RESTRICTED">Restricted</SelectItem>
+                  <SelectItem value="ANYONE">Anyone with the link</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="truncate text-xs text-gray-400">
+                {linkAccess === "RESTRICTED"
+                  ? "Only people with access can open with the link"
+                  : "Anyone on the internet with the link can open it, no sign-in needed"}
+              </p>
+            </div>
+            {linkAccess !== "RESTRICTED" && (
+              <Select
+                items={ROLE_ITEMS}
+                value={linkAccess}
+                disabled={savingLinkAccess}
+                onValueChange={(value) =>
+                  value && value !== linkAccess && handleLinkAccessChange(value as LinkAccess)
+                }
+              >
+                <SelectTrigger
+                  aria-label="Link role"
+                  className="h-9 min-w-24 border-gray-200 bg-gray-50 data-[size=default]:h-9"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="VIEWER">Viewer</SelectItem>
+                  <SelectItem value="EDITOR">Editor</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </div>
+
         {/* Footer */}
-        <div className="flex justify-end gap-2 border-t border-gray-100 px-5 py-4">
+        <div className="mt-4 flex items-center justify-between gap-2 border-t border-gray-100 px-5 py-4">
+          <button
+            onClick={handleCopyLink}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+          >
+            <Link2 size={14} />
+            Copy link
+          </button>
           <button
             onClick={onClose}
             className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"

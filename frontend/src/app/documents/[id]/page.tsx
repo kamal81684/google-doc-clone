@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Lock, Share2, Download } from "lucide-react";
+import { Lock, Share2, Download, LogIn, FileText } from "lucide-react";
 
 import {
   getDocumentById,
@@ -16,6 +16,13 @@ import { useCollaboration } from "@/hooks/useCollaboration";
 import DocumentEditor from "@/components/editor/DocumentEditor";
 import ShareDialog from "@/components/ShareDialog";
 import { DocsLogo } from "@/components/DocsLogo";
+import { loginUrlForCurrentPage } from "@/lib/redirect";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null) {
@@ -47,8 +54,10 @@ export default function DocumentPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [userName, setUserName] = useState("Anonymous");
   const [saveState, setSaveState] = useState<"saved" | "saving">("saved");
-  const [downloadOpen, setDownloadOpen] = useState(false);
   const [peers, setPeers] = useState<PresenceUser[]>([]);
+  const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
+  // 401: not signed in and the link isn't public; 403: signed in but not shared with this account
+  const [loadError, setLoadError] = useState<{ status: number; message: string } | null>(null);
 
   const previousTitle = useRef(title);
 
@@ -61,7 +70,14 @@ export default function DocumentPage() {
         setAccessRole(response.document.accessRole);
         previousTitle.current = response.document.title;
       } catch (error) {
-        toast.error(getErrorMessage(error, "Failed to load document"));
+        const status =
+          (error as { response?: { status?: number } })?.response?.status ?? 0;
+        if (status === 401 || status === 403) {
+          setLoadError({ status, message: getErrorMessage(error, "No access") });
+        } else {
+          setLoadError({ status, message: getErrorMessage(error, "Failed to load document") });
+          toast.error(getErrorMessage(error, "Failed to load document"));
+        }
       }
     };
     fetchDocument();
@@ -77,11 +93,13 @@ export default function DocumentPage() {
           { credentials: "include" }
         );
         const data = await res.json();
+        setIsSignedIn(res.ok && Boolean(data.user));
         if (data.user?.name) {
           setUserName(data.user.name);
         }
       } catch {
         // keep default "Anonymous"
+        setIsSignedIn(false);
       }
     };
     fetchUser();
@@ -153,7 +171,6 @@ export default function DocumentPage() {
 
   const handleDownload = useCallback(
     async (format: "txt" | "pdf") => {
-      setDownloadOpen(false);
       try {
         const blob = await downloadDocument(id, format);
         const url = window.URL.createObjectURL(blob);
@@ -174,6 +191,46 @@ export default function DocumentPage() {
 
   const canEdit = accessRole === "OWNER" || accessRole === "EDITOR";
 
+  if (loadError) {
+    const needsSignIn = loadError.status === 401;
+    return (
+      <div className="app-font flex min-h-screen flex-col items-center justify-center gap-4 bg-[#fafafa] px-4 text-center">
+        <DocsLogo size={40} />
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900">
+            {needsSignIn
+              ? "Sign in to open this document"
+              : loadError.status === 403
+                ? "You need access"
+                : "Couldn't open this document"}
+          </h1>
+          <p className="mt-1 max-w-sm text-sm text-gray-500">
+            {needsSignIn
+              ? "This document is only available to people it's been shared with."
+              : loadError.status === 403
+                ? "Ask the owner to share it with your account, or to turn on link sharing."
+                : loadError.message}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {needsSignIn ? (
+            <button
+              className="gd-btn-primary"
+              onClick={() => router.push(loginUrlForCurrentPage())}
+            >
+              <LogIn size={16} />
+              Sign in
+            </button>
+          ) : (
+            <button className="gd-btn-primary" onClick={() => router.push("/dashboard")}>
+              Go to my documents
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (!document || !isSynced || !provider || !doc) {
     return (
       <div className="app-font flex min-h-screen flex-col items-center justify-center gap-3 bg-[#fafafa]">
@@ -188,7 +245,9 @@ export default function DocumentPage() {
       {/* Top bar */}
       <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
         <button
-          onClick={() => router.push("/dashboard")}
+          onClick={() =>
+            router.push(isSignedIn === false ? loginUrlForCurrentPage() : "/dashboard")
+          }
           className="shrink-0"
           aria-label="Home"
         >
@@ -236,38 +295,35 @@ export default function DocumentPage() {
           )}
 
           {/* Download */}
-          <div className="relative">
-            <button
-              className="gd-icon-btn"
-              onClick={() => setDownloadOpen((v) => !v)}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="gd-icon-btn data-popup-open:bg-gray-100"
               aria-label="Download"
               title="Download"
             >
               <Download size={18} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => handleDownload("txt")}>
+                <FileText size={14} className="text-gray-400" />
+                Plain text (.txt)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDownload("pdf")}>
+                <FileText size={14} className="text-gray-400" />
+                PDF (.pdf)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {isSignedIn === false && (
+            <button
+              className="gd-btn-primary"
+              onClick={() => router.push(loginUrlForCurrentPage())}
+            >
+              <LogIn size={16} />
+              Sign in
             </button>
-            {downloadOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setDownloadOpen(false)}
-                />
-                <div className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-                  <button
-                    onClick={() => handleDownload("txt")}
-                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    Plain text (.txt)
-                  </button>
-                  <button
-                    onClick={() => handleDownload("pdf")}
-                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    PDF (.pdf)
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          )}
 
           {accessRole === "OWNER" && (
             <button className="gd-btn-primary" onClick={() => setShareOpen(true)}>

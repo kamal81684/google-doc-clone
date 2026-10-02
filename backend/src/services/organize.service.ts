@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
-import { getGroq, isTypeSafeEnabled, LLM_MODEL } from "../config/ai";
+import { getLLM, isTypeSafeEnabled, LLM_ORGANIZE_MODEL, maxTokensParam, reasoningParams } from "../config/ai";
 import { getDocumentText } from "./indexing.service";
 
 const MAX_DOCS_PER_RUN = 200;
@@ -86,7 +86,7 @@ const loadUnfiledDocs = async (userId: string) => {
     return { unfiled, remaining: total - docs.length };
 };
 
-// Strict mode on Groq needs a plain JSON Schema (all fields required, no extra properties)
+// Strict JSON-schema mode needs a plain JSON Schema (all fields required, no extra properties)
 const { $schema: _ignored, ...PROPOSAL_JSON_SCHEMA } = z.toJSONSchema(ProposalSchema);
 
 /** Step 1: the LLM reads titles + excerpts and proposes folders (and a first grouping). */
@@ -103,11 +103,10 @@ const proposeFolders = async (
               .join("\n")
         : "(none)";
 
-    const response = await getGroq().chat.completions.create({
-        model: LLM_MODEL,
-        max_completion_tokens: 16000,
-        reasoning_effort: "medium",
-        include_reasoning: false,
+    const response = await getLLM().chat.completions.create({
+        model: LLM_ORGANIZE_MODEL,
+        ...maxTokensParam(16000),
+        ...reasoningParams("medium"),
         response_format: {
             type: "json_schema",
             json_schema: {

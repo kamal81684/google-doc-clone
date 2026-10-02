@@ -4,6 +4,7 @@ declare module "lucide-react" {
 
   export const Search: Icon;
   export const Trash2: Icon;
+  export const TriangleAlert: Icon;
   export const Bold: Icon;
   export const Italic: Icon;
   export const Underline: Icon;
@@ -21,6 +22,11 @@ declare module "lucide-react" {
   export const Printer: Icon;
   export const Type: Icon;
   export const ChevronDown: Icon;
+  export const ChevronUp: Icon;
+  export const ChevronRight: Icon;
+  export const ChevronLeft: Icon;
+  export const History: Icon;
+  export const SquarePen: Icon;
   export const Plus: Icon;
   export const Minus: Icon;
   export const Star: Icon;
@@ -42,6 +48,8 @@ declare module "lucide-react" {
   export const Users: Icon;
   export const Clock: Icon;
   export const Lock: Icon;
+  export const Globe: Icon;
+  export const LogIn: Icon;
   export const SortDesc: Icon;
   export const Download: Icon;
   export const Sparkles: Icon;

@@ -1,11 +1,11 @@
 import {Router} from "express";
 import {createDocument, deleteDocument, getDocumentById, getDocuments, getUserDocuments, getSharedWithMe, updateDocument} from "../controllers/document.controller";
-import {isAuthenticated} from "../middleware/auth.middleware";
+import {isAuthenticated, optionalAuth} from "../middleware/auth.middleware";
 import {
     downloadDocumentAsTxt,
     downloadDocumentAsPdf,
 } from "../controllers/document.controller";
-import {shareDocument, getSharedUsers} from "../controllers/permission.controller";
+import {shareDocument, getSharedUsers, setLinkAccess} from "../controllers/permission.controller";
 import {moveDocumentToFolder} from "../controllers/folder.controller";
 
 
@@ -20,13 +20,13 @@ router.get("/shared", isAuthenticated, getSharedWithMe);
 // Put these BEFORE "/:id"
 router.get(
     "/:id/download/txt",
-    isAuthenticated,
+    optionalAuth,
     downloadDocumentAsTxt
 );
 
 router.get(
     "/:id/download/pdf",
-    isAuthenticated,
+    optionalAuth,
     downloadDocumentAsPdf
 );
 
@@ -34,6 +34,12 @@ router.post(
     "/:id/share",
     isAuthenticated,
     shareDocument
+);
+
+router.patch(
+    "/:id/link-access",
+    isAuthenticated,
+    setLinkAccess
 );
 
 router.get(
@@ -48,8 +54,9 @@ router.patch(
     moveDocumentToFolder
 );
 
-router.get("/:id", isAuthenticated, getDocumentById);
-router.patch("/:id", isAuthenticated, updateDocument);
+// Open to anyone with the link when the document allows it; access is checked per document
+router.get("/:id", optionalAuth, getDocumentById);
+router.patch("/:id", optionalAuth, updateDocument);
 router.delete("/:id", isAuthenticated, deleteDocument);
 
 export default router;

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createDocumentService, deleteDocumentService, getDocumentByIdService, getDocumentsByOwnerService, getUserDocumentsService, getSharedWithMeService, updateDocumentService } from "../services/document.service";
+import { createDocumentService, deleteDocumentService, getDocumentByIdService, getDocumentsByOwnerService, getUserDocumentsService, getSharedWithMeService, updateDocumentService, DocumentAccessError } from "../services/document.service";
 import PDFDocument from "pdfkit";
 import { extractDocumentText } from "../utils/documentExport";
 import { scheduleIndexDocument } from "../services/indexing.service";
@@ -38,7 +38,8 @@ export const getDocumentById = async (
 
     try {
 
-        const userId = (req as any).user.id;
+        // Unset for visitors opening a shared link without signing in
+        const userId: string | null = (req as any).user?.id ?? null;
         const id = req.params.id as string;
 
         const document = await getDocumentByIdService(id, userId);
@@ -57,7 +58,7 @@ export const getDocumentById = async (
 
     } catch (error: any) {
 
-        return res.status(500).json({
+        return res.status(error instanceof DocumentAccessError ? error.status : 500).json({
             success: false,
             message: error.message
         });
@@ -142,7 +143,8 @@ export const updateDocument = async (
     res: Response
 ) => {
     try {
-        const userId = (req as any).user.id;
+        // Unset for visitors opening a shared link without signing in
+        const userId: string | null = (req as any).user?.id ?? null;
 
         const id = req.params.id as string;
         const { title, content } = req.body;
@@ -165,7 +167,7 @@ export const updateDocument = async (
         });
 
     } catch (error: any) {
-        return res.status(400).json({
+        return res.status(error instanceof DocumentAccessError ? error.status : 400).json({
             success: false,
             message: error.message,
         });
@@ -177,7 +179,8 @@ export const downloadDocumentAsTxt = async (
     res: Response
 ) => {
     try {
-        const userId = (req as any).user.id;
+        // Unset for visitors opening a shared link without signing in
+        const userId: string | null = (req as any).user?.id ?? null;
         const id = req.params.id as string;
 
         const document = await getDocumentByIdService(
@@ -217,7 +220,7 @@ export const downloadDocumentAsTxt = async (
         return res.send(fileContent);
 
     } catch (error: any) {
-        return res.status(500).json({
+        return res.status(error instanceof DocumentAccessError ? error.status : 500).json({
             success: false,
             message: error.message,
         });
@@ -229,7 +232,8 @@ export const downloadDocumentAsPdf = async (
     res: Response
 ) => {
     try {
-        const userId = (req as any).user.id;
+        // Unset for visitors opening a shared link without signing in
+        const userId: string | null = (req as any).user?.id ?? null;
         const id = req.params.id as string;
 
         const document = await getDocumentByIdService(
@@ -282,7 +286,7 @@ export const downloadDocumentAsPdf = async (
         pdf.end();
 
     } catch (error: any) {
-        return res.status(500).json({
+        return res.status(error instanceof DocumentAccessError ? error.status : 500).json({
             success: false,
             message: error.message,
         });

@@ -9,6 +9,13 @@ datasource db {
   extensions = [vector]
 }
 
+// General access for a document's link ("Anyone with the link"), on top of per-user permissions
+enum LinkAccess {
+    RESTRICTED
+    VIEWER
+    EDITOR
+}
+
 enum PermissionRole {
     VIEWER
     EDITOR
@@ -44,6 +51,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   sharedDocuments DocumentPermission[]
+  conversations   Conversation[]
 }
 
 model Document {
@@ -63,6 +71,10 @@ model Document {
 
   updatedAt DateTime @updatedAt
   permissions DocumentPermission[]
+
+  // RESTRICTED = only the owner and people it's shared with; VIEWER/EDITOR = anyone with the link,
+  // including visitors who aren't signed in
+  linkAccess LinkAccess @default(RESTRICTED)
 
   folderId String?
   folder   Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
@@ -105,4 +117,40 @@ model DocumentChunk {
   createdAt DateTime @default(now())
 
   @@unique([documentId, chunkIndex])
+}
+
+// "Chat with your docs" history: one row per chat thread
+model Conversation {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // First question, trimmed; shown in the history list
+  title    String
+  messages ConversationMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+enum ConversationRole {
+  USER
+  ASSISTANT
+}
+
+model ConversationMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  role    ConversationRole
+  content String
+  // Assistant turns: the excerpts it could cite, [{ index, documentId, title }]
+  sources Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
 }

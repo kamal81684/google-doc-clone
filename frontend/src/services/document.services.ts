@@ -1,5 +1,8 @@
 import api from "./axios";
 
+/** "Anyone with the link" setting; RESTRICTED means only people it's shared with */
+export type LinkAccess = "RESTRICTED" | "VIEWER" | "EDITOR";
+
 export interface Document {
   id: string;
   title: string;
@@ -7,6 +10,7 @@ export interface Document {
   ownerId: string;
   folderId?: string | null;
   accessRole?: "OWNER" | "EDITOR" | "VIEWER";
+  linkAccess?: LinkAccess;
   createdAt: string;
   updatedAt: string;
 }
@@ -98,6 +102,11 @@ export const shareDocument = async (
 
 export const getDocumentPermissions = async (id: string) => {
     const response = await api.get(`/documents/${id}/permissions`);
+    return response.data;
+};
+
+export const setLinkAccess = async (id: string, linkAccess: LinkAccess) => {
+    const response = await api.patch(`/documents/${id}/link-access`, { linkAccess });
     return response.data;
 };
 

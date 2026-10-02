@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { shareDocumentService, getDocumentPermissions } from "../services/permission.service";
+import { shareDocumentService, getDocumentPermissions, setLinkAccessService } from "../services/permission.service";
 
 export const shareDocument = async (
     req: Request,
@@ -36,10 +36,11 @@ export const getSharedUsers = async (
         const id = req.params.id as string;
         const ownerId = (req as any).user.id;
 
-        const permissions = await getDocumentPermissions(id, ownerId);
+        const { linkAccess, permissions } = await getDocumentPermissions(id, ownerId);
 
         return res.status(200).json({
             success: true,
+            linkAccess,
             permissions,
         });
 
@@ -51,4 +52,27 @@ export const getSharedUsers = async (
     }
 };
 
-export default { shareDocument, getSharedUsers };
+export const setLinkAccess = async (
+    req: Request,
+    res: Response
+) => {
+    try {
+        const id = req.params.id as string;
+        const ownerId = (req as any).user.id;
+
+        const linkAccess = await setLinkAccessService(id, ownerId, req.body.linkAccess);
+
+        return res.status(200).json({
+            success: true,
+            linkAccess,
+        });
+
+    } catch (error: any) {
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+export default { shareDocument, getSharedUsers, setLinkAccess };

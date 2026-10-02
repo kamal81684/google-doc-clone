@@ -1,7 +1,7 @@
-import Groq from "groq-sdk";
+import type OpenAI from "openai";
 import { Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
-import { getGroq, isEmbeddingEnabled, LLM_MODEL } from "../config/ai";
+import { getLLM, isEmbeddingEnabled, LLM_CHAT_MODEL, LLM_CHAT_REASONING, maxTokensParam, reasoningParams } from "../config/ai";
 import { embedTexts, toVectorLiteral } from "./embedding.service";
 import { ensureUserIndexed, getAccessibleDocumentIds } from "./indexing.service";
 
@@ -30,6 +30,8 @@ interface RetrievedChunk {
 export interface ChatStreamHandlers {
     onSources: (sources: ChatSource[]) => void;
     onText: (text: string) => void;
+    /** Called once when the model starts reasoning, so the UI can show it's working */
+    onThinking?: () => void;
     signal: AbortSignal;
 }
 
@@ -190,28 +192,34 @@ ${excerpts.text}
 
 ${latest.content}`;
 
-    const apiMessages: Groq.Chat.ChatCompletionMessageParam[] = [
+    const apiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
         { role: "system", content: SYSTEM_PROMPT },
         ...messages.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
         { role: "user", content: contextualizedLatest },
     ];
 
-    const stream = await getGroq().chat.completions.create(
+    const stream = await getLLM().chat.completions.create(
         {
-            model: LLM_MODEL,
+            model: LLM_CHAT_MODEL,
             messages: apiMessages,
             stream: true,
-            max_completion_tokens: 8192,
-            // Chat is latency-sensitive: think briefly, and keep reasoning out of the reply
-            reasoning_effort: "low",
-            include_reasoning: false,
+            ...maxTokensParam(8192),
+            // Off by default (LLM_CHAT_REASONING) so the answer starts streaming right away
+            ...reasoningParams(LLM_CHAT_REASONING),
         },
         { signal: handlers.signal }
     );
 
     let finishReason: string | null = null;
+    let thinking = false;
     for await (const chunk of stream) {
         const choice = chunk.choices[0];
+        // Providers stream reasoning in a separate field (Sarvam: reasoning_content, Groq: reasoning)
+        const delta = choice?.delta as { reasoning_content?: string; reasoning?: string } | undefined;
+        if (!thinking && (delta?.reasoning_content || delta?.reasoning)) {
+            thinking = true;
+            handlers.onThinking?.();
+        }
         if (choice?.delta?.content) {
             handlers.onText(choice.delta.content);
         }

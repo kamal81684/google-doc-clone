@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { login } from "@/services/auth.service";
+import { getPostLoginPath } from "@/lib/redirect";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -44,7 +45,7 @@ export function LoginForm() {
       const response = await login(data.email, data.password);
       if (response.success) {
         toast.success("Login successful!");
-        router.push("/dashboard");
+        router.push(getPostLoginPath());
       } else {
         toast.error(response.message || "Login failed");
       }

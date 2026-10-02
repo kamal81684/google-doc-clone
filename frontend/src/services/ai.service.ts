@@ -17,6 +17,37 @@ export interface ChatSource {
   title: string;
 }
 
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
+export interface ConversationDetail extends ConversationSummary {
+  messages: {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    sources?: ChatSource[];
+    createdAt: string;
+  }[];
+}
+
+export const listConversations = async (): Promise<ConversationSummary[]> => {
+    const response = await api.get("/ai/conversations");
+    return response.data.conversations;
+};
+
+export const getConversation = async (id: string): Promise<ConversationDetail> => {
+    const response = await api.get(`/ai/conversations/${id}`);
+    return response.data.conversation;
+};
+
+export const deleteConversation = async (id: string) => {
+    const response = await api.delete(`/ai/conversations/${id}`);
+    return response.data;
+};
+
 export interface ProposedDocument {
   id: string;
   title: string;
@@ -57,12 +88,16 @@ export const applyOrganize = async (folders: {
 /**
  * Streams an answer over server-sent events. Uses fetch (not axios) because
  * axios can't read a streaming response body in the browser.
+ * The server keeps the history: pass the conversation to continue, or omit it to start one.
  */
 export const streamChat = async (
-    messages: ChatMessage[],
+    request: { message: string; conversationId?: string | null },
     handlers: {
+        onConversation?: (conversation: { id: string; title: string }) => void;
         onSources: (sources: ChatSource[]) => void;
         onText: (text: string) => void;
+        /** The model is reasoning before it answers */
+        onThinking?: () => void;
         signal?: AbortSignal;
     }
 ) => {
@@ -70,7 +105,10 @@ export const streamChat = async (
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({
+            message: request.message,
+            ...(request.conversationId ? { conversationId: request.conversationId } : {}),
+        }),
         signal: handlers.signal,
     });
 
@@ -100,8 +138,10 @@ export const streamChat = async (
             if (!event || data === undefined) continue;
 
             const payload = JSON.parse(data);
-            if (event === "sources") handlers.onSources(payload);
+            if (event === "conversation") handlers.onConversation?.(payload);
+            else if (event === "sources") handlers.onSources(payload);
             else if (event === "delta") handlers.onText(payload.text);
+            else if (event === "status" && payload.phase === "thinking") handlers.onThinking?.();
             else if (event === "error") throw new Error(payload.message);
         }
     }
