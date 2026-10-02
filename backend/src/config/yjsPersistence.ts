@@ -24,6 +24,9 @@ export const getYDoc = async (docName: string): Promise<Y.Doc> => {
     return ydoc;
 };
 
+/** The in-memory doc while someone has it open (it is newer than the DB copy). */
+export const getLoadedYDoc = (docName: string): Y.Doc | undefined => docs.get(docName);
+
 export const saveYDoc = async (docName: string): Promise<void> => {
     const ydoc = docs.get(docName);
     if(!ydoc) return;

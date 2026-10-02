@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 enum PermissionRole {
@@ -37,6 +39,7 @@ model User {
   googleId  String?  @unique
   avatar    String?
   documents Document[]
+  folders   Folder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -60,4 +63,46 @@ model Document {
 
   updatedAt DateTime @updatedAt
   permissions DocumentPermission[]
+
+  folderId String?
+  folder   Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  // Hash of the text last embedded into DocumentChunk; null = never indexed
+  indexedHash String?
+  indexedAt   DateTime?
+  chunks      DocumentChunk[]
+
+  @@index([ownerId, folderId])
+}
+
+model Folder {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  documents Document[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ownerId, name])
+}
+
+// Text chunks of a document with their embedding, used for "chat with your docs".
+// The embedding column is managed with raw SQL (pgvector), Prisma can't type it.
+model DocumentChunk {
+  id         String @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  chunkIndex Int
+  content    String
+  embedding  Unsupported("vector(1024)")?
+
+  createdAt DateTime @default(now())
+
+  @@unique([documentId, chunkIndex])
 }

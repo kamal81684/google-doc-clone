@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { createDocumentService, deleteDocumentService, getDocumentByIdService, getDocumentsByOwnerService, getUserDocumentsService, getSharedWithMeService, updateDocumentService } from "../services/document.service";
 import PDFDocument from "pdfkit";
 import { extractDocumentText } from "../utils/documentExport";
+import { scheduleIndexDocument } from "../services/indexing.service";
 
 export const createDocument = async (
     req: Request,
@@ -152,6 +153,10 @@ export const updateDocument = async (
             title,
             content
         );
+
+        if (title !== undefined) {
+            scheduleIndexDocument(id);
+        }
 
         return res.status(200).json({
             success: true,

@@ -302,6 +302,13 @@
   padding-left: 24px;
   margin: 0 0 10px;
 }
+/* Tailwind's preflight removes list markers */
+.gd-page .ProseMirror ul {
+  list-style-type: disc;
+}
+.gd-page .ProseMirror ol {
+  list-style-type: decimal;
+}
 .gd-page .ProseMirror li {
   margin: 2px 0;
 }

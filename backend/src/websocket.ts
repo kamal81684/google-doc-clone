@@ -7,7 +7,8 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import jwt from "jsonwebtoken";
 import { URL } from "url";
-import { getYDoc, saveYDoc } from "./config/yjsPersistence";
+import { clearYDoc, getYDoc, saveYDoc } from "./config/yjsPersistence";
+import { scheduleIndexDocument } from "./services/indexing.service";
 import { checkDocumentAccess } from "./services/permission.service";
 
 const messageSync = 0;
@@ -252,9 +253,13 @@ export const setupWebSocket = (server: any) => {
           if (docClients.size === 0) {
             // Last client left — persist and cleanup
             await saveYDoc(docName);
-            ydoc.destroy();
+            // Someone may have reconnected while we were saving
+            if (docClients.size > 0) return;
+            clearYDoc(docName);
             docConns.delete(docName);
             docAwareness.delete(docName);
+            // Refresh the AI search index with the saved content
+            scheduleIndexDocument(docName);
           }
         }
       });

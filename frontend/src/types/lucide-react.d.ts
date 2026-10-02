@@ -44,4 +44,11 @@ declare module "lucide-react" {
   export const Lock: Icon;
   export const SortDesc: Icon;
   export const Download: Icon;
+  export const Sparkles: Icon;
+  export const FolderPlus: Icon;
+  export const FolderInput: Icon;
+  export const ArrowUp: Icon;
+  export const LoaderCircle: Icon;
+  export const Pencil: Icon;
+  export const Inbox: Icon;
 }

@@ -6,6 +6,7 @@ import {
     downloadDocumentAsPdf,
 } from "../controllers/document.controller";
 import {shareDocument, getSharedUsers} from "../controllers/permission.controller";
+import {moveDocumentToFolder} from "../controllers/folder.controller";
 
 
 const router = Router();
@@ -39,6 +40,12 @@ router.get(
     "/:id/permissions",
     isAuthenticated,
     getSharedUsers
+);
+
+router.patch(
+    "/:id/folder",
+    isAuthenticated,
+    moveDocumentToFolder
 );
 
 router.get("/:id", isAuthenticated, getDocumentById);

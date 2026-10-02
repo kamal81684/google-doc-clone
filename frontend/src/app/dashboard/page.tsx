@@ -3,9 +3,25 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Search, Trash2, MoreVertical, FileText, X, Plus } from "lucide-react";
+import { isAxiosError } from "axios";
+import {
+  Search,
+  Trash2,
+  MoreVertical,
+  FileText,
+  X,
+  Plus,
+  Sparkles,
+  MessageSquare,
+  Folder as FolderIcon,
+  FolderPlus,
+  FolderInput,
+  Pencil,
+} from "lucide-react";
 
 import { DocsLogo } from "@/components/DocsLogo";
+import { ChatPanel } from "@/components/ChatPanel";
+import { OrganizeDialog } from "@/components/OrganizeDialog";
 import { getMe, logout, User } from "@/services/auth.service";
 import {
   createDocument,
@@ -13,8 +29,24 @@ import {
   deleteDocument,
   getSharedDocuments,
   downloadDocument,
+  moveDocumentToFolder,
   Document,
 } from "@/services/document.services";
+import {
+  createFolder,
+  deleteFolder,
+  getFolders,
+  renameFolder,
+  Folder,
+} from "@/services/folder.service";
+import { AiStatus, getAiStatus } from "@/services/ai.service";
+
+// "all" | "unfiled" | a folder id
+type FolderFilter = string;
+
+function apiErrorMessage(error: unknown, fallback: string): string {
+  return (isAxiosError(error) && error.response?.data?.message) || fallback;
+}
 
 function formatDate(value: string) {
   const d = new Date(value);
@@ -53,6 +85,8 @@ function DocCard({
   onOpen,
   onDelete,
   onDownload,
+  onMove,
+  folders,
   badge,
   deleting,
 }: {
@@ -60,9 +94,12 @@ function DocCard({
   onOpen: () => void;
   onDelete?: (e: React.MouseEvent) => void;
   onDownload: (format: "pdf" | "txt") => void;
+  onMove?: (folderId: string | null) => void;
+  folders?: Folder[];
   badge?: string;
   deleting?: boolean;
 }) {
+  const folderName = folders?.find((f) => f.id === doc.folderId)?.name;
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -75,12 +112,13 @@ function DocCard({
           <FileText size={18} className="text-indigo-500" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-gray-900">
+          <p className="line-clamp-2 break-words text-sm font-medium text-gray-900">
             {doc.title || "Untitled document"}
           </p>
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 truncate text-xs text-gray-400">
             {badge ? `${badge} · ` : ""}
             {formatDate(doc.updatedAt)}
+            {folderName ? ` · ${folderName}` : ""}
           </p>
         </div>
 
@@ -135,6 +173,44 @@ function DocCard({
                   Plain text
                 </button>
 
+                {onMove && folders && (folders.length > 0 || doc.folderId) && (
+                  <>
+                    <div className="my-1 h-px bg-gray-100" />
+                    <p className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-gray-400">
+                      Move to folder
+                    </p>
+                    <div className="max-h-48 overflow-y-auto">
+                      {folders
+                        .filter((f) => f.id !== doc.folderId)
+                        .map((f) => (
+                          <button
+                            key={f.id}
+                            onClick={() => {
+                              onMove(f.id);
+                              setMenuOpen(false);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <FolderInput size={14} className="shrink-0 text-gray-400" />
+                            <span className="truncate">{f.name}</span>
+                          </button>
+                        ))}
+                    </div>
+                    {doc.folderId && (
+                      <button
+                        onClick={() => {
+                          onMove(null);
+                          setMenuOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <X size={14} className="text-gray-400" />
+                        Remove from folder
+                      </button>
+                    )}
+                  </>
+                )}
+
                 {onDelete && (
                   <>
                     <div className="my-1 h-px bg-gray-100" />
@@ -170,6 +246,13 @@ export default function DashboardPage() {
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [activeFolder, setActiveFolder] = useState<FolderFilter>("all");
+  const [folderNameDraft, setFolderNameDraft] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState<string | null>(null);
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [organizeOpen, setOrganizeOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
 
@@ -195,6 +278,17 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const fetchFolders = useCallback(async () => {
+    try {
+      const response = await getFolders();
+      if (response.success && response.folders) {
+        setFolders(response.folders);
+      }
+    } catch {
+      toast.error("Failed to fetch folders");
+    }
+  }, []);
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -203,6 +297,11 @@ export default function DashboardPage() {
           setUser(response.user);
           await fetchDocuments();
           await fetchSharedDocuments();
+          await fetchFolders();
+          // Also starts indexing documents in the background for chat
+          getAiStatus()
+            .then(setAiStatus)
+            .catch(() => setAiStatus(null));
         } else {
           router.push("/login");
         }
@@ -214,7 +313,7 @@ export default function DashboardPage() {
     };
 
     fetchUser();
-  }, [router, fetchDocuments, fetchSharedDocuments]);
+  }, [router, fetchDocuments, fetchSharedDocuments, fetchFolders]);
 
   useEffect(() => {
     if (!user) return;
@@ -302,6 +401,80 @@ export default function DashboardPage() {
     }
   };
 
+  const handleMoveDocument = async (docId: string, folderId: string | null) => {
+    try {
+      await moveDocumentToFolder(docId, folderId);
+      setDocuments((prev) =>
+        prev.map((doc) => (doc.id === docId ? { ...doc, folderId } : doc))
+      );
+      fetchFolders();
+      const target = folders.find((f) => f.id === folderId);
+      toast.success(target ? `Moved to ${target.name}` : "Removed from folder");
+    } catch {
+      toast.error("Failed to move document");
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    const name = folderNameDraft?.trim();
+    if (!name) {
+      setFolderNameDraft(null);
+      return;
+    }
+    try {
+      const response = await createFolder(name);
+      setFolderNameDraft(null);
+      await fetchFolders();
+      setActiveFolder(response.folder.id);
+    } catch (error) {
+      toast.error(apiErrorMessage(error, "Failed to create folder"));
+    }
+  };
+
+  const handleRenameFolder = async (folderId: string) => {
+    const name = renameDraft?.trim();
+    setRenameDraft(null);
+    if (!name) return;
+    try {
+      await renameFolder(folderId, name);
+      await fetchFolders();
+    } catch (error) {
+      toast.error(apiErrorMessage(error, "Failed to rename folder"));
+    }
+  };
+
+  const handleDeleteFolder = async (folder: Folder) => {
+    if (
+      !confirm(
+        `Delete the folder "${folder.name}"? Its documents won't be deleted; they'll become unfiled.`
+      )
+    )
+      return;
+    try {
+      await deleteFolder(folder.id);
+      setDocuments((prev) =>
+        prev.map((doc) =>
+          doc.folderId === folder.id ? { ...doc, folderId: null } : doc
+        )
+      );
+      setActiveFolder("all");
+      await fetchFolders();
+      toast.success("Folder deleted");
+    } catch {
+      toast.error("Failed to delete folder");
+    }
+  };
+
+  const activeFolderObj = folders.find((f) => f.id === activeFolder);
+  const unfiledCount = documents.filter((doc) => !doc.folderId).length;
+  const visibleDocuments = documents.filter((doc) =>
+    activeFolder === "all"
+      ? true
+      : activeFolder === "unfiled"
+        ? !doc.folderId
+        : doc.folderId === activeFolder
+  );
+
   if (isLoading) {
     return (
       <div className="app-font flex min-h-screen items-center justify-center text-gray-400">
@@ -335,6 +508,20 @@ export default function DashboardPage() {
             </button>
           )}
         </div>
+
+        <button
+          onClick={() => setChatOpen((v) => !v)}
+          className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition ${
+            chatOpen
+              ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+              : "border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
+          }`}
+          aria-label="Chat with your docs"
+          title="Chat with your docs"
+        >
+          <MessageSquare size={16} />
+          <span className="hidden md:inline">Ask your docs</span>
+        </button>
 
         <div className="relative shrink-0">
           <button
@@ -383,30 +570,143 @@ export default function DashboardPage() {
             <Plus size={18} />
             {isCreating ? "Creating..." : "New document"}
           </button>
+          {aiStatus?.chatEnabled && unfiledCount > 1 && (
+            <button
+              onClick={() => setOrganizeOpen(true)}
+              className="ml-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-3 text-sm font-medium text-gray-600 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600"
+            >
+              <Sparkles size={16} />
+              Organize with AI
+            </button>
+          )}
         </div>
       </section>
 
       {/* Recent documents */}
       <section className="mx-auto max-w-4xl px-6 py-6">
-        <h2 className="mb-4 text-sm font-medium text-gray-500">
-          {search ? "Search results" : "Recent documents"}
-        </h2>
+        <div className="mb-5 flex flex-wrap items-center gap-2">
+          {[
+            { id: "all", name: "All", count: documents.length },
+            ...(folders.length > 0
+              ? [{ id: "unfiled", name: "Unfiled", count: unfiledCount }]
+              : []),
+            ...folders.map((f) => ({
+              id: f.id,
+              name: f.name,
+              count: f.documentCount,
+            })),
+          ].map((chip) => (
+            <button
+              key={chip.id}
+              onClick={() => {
+                setActiveFolder(chip.id);
+                setRenameDraft(null);
+              }}
+              className={`inline-flex max-w-[220px] items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
+                activeFolder === chip.id
+                  ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+              }`}
+            >
+              {chip.id !== "all" && chip.id !== "unfiled" && (
+                <FolderIcon size={12} className="shrink-0" />
+              )}
+              <span className="truncate">{chip.name}</span>
+              <span className="text-gray-400">{chip.count}</span>
+            </button>
+          ))}
 
-        {documents.length === 0 ? (
+          {folderNameDraft !== null ? (
+            <input
+              autoFocus
+              value={folderNameDraft}
+              onChange={(e) => setFolderNameDraft(e.target.value)}
+              onBlur={handleCreateFolder}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreateFolder();
+                if (e.key === "Escape") setFolderNameDraft(null);
+              }}
+              maxLength={60}
+              placeholder="Folder name"
+              className="w-36 rounded-full border border-indigo-300 bg-white px-3 py-1 text-xs outline-none"
+            />
+          ) : (
+            <button
+              onClick={() => setFolderNameDraft("")}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
+            >
+              <FolderPlus size={13} />
+              New folder
+            </button>
+          )}
+        </div>
+
+        <div className="mb-4 flex items-center gap-2">
+          {activeFolderObj && renameDraft !== null ? (
+            <input
+              autoFocus
+              value={renameDraft}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onBlur={() => handleRenameFolder(activeFolderObj.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRenameFolder(activeFolderObj.id);
+                if (e.key === "Escape") setRenameDraft(null);
+              }}
+              maxLength={60}
+              className="rounded-md border border-indigo-300 px-2 py-0.5 text-sm outline-none"
+            />
+          ) : (
+            <h2 className="text-sm font-medium text-gray-500">
+              {search
+                ? "Search results"
+                : activeFolderObj
+                  ? activeFolderObj.name
+                  : activeFolder === "unfiled"
+                    ? "Unfiled documents"
+                    : "Recent documents"}
+            </h2>
+          )}
+          {activeFolderObj && renameDraft === null && (
+            <>
+              <button
+                onClick={() => setRenameDraft(activeFolderObj.name)}
+                className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                aria-label="Rename folder"
+                title="Rename folder"
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                onClick={() => handleDeleteFolder(activeFolderObj)}
+                className="rounded-md p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                aria-label="Delete folder"
+                title="Delete folder"
+              >
+                <Trash2 size={13} />
+              </button>
+            </>
+          )}
+        </div>
+
+        {visibleDocuments.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 py-16 text-center">
             <FileText size={36} className="mb-3 text-gray-300" />
             <p className="text-sm text-gray-400">
               {search
                 ? "No documents match your search"
-                : "No documents yet. Create your first one above."}
+                : activeFolder !== "all"
+                  ? "No documents here yet. Use a document's ⋮ menu to move it into this folder."
+                  : "No documents yet. Create your first one above."}
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {documents.map((doc) => (
+            {visibleDocuments.map((doc) => (
               <DocCard
                 key={doc.id}
                 doc={doc}
+                folders={folders}
+                onMove={(folderId) => handleMoveDocument(doc.id, folderId)}
                 deleting={deletingId === doc.id}
                 onOpen={() => router.push(`/documents/${doc.id}`)}
                 onDelete={(e) => handleDeleteDocument(e, doc.id)}
@@ -420,7 +720,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Shared with me */}
-      {sharedDocuments.length > 0 && (
+      {sharedDocuments.length > 0 && activeFolder === "all" && (
         <section className="mx-auto max-w-4xl px-6 pb-12">
           <h2 className="mb-4 text-sm font-medium text-gray-500">
             Shared with me
@@ -439,6 +739,22 @@ export default function DashboardPage() {
             ))}
           </div>
         </section>
+      )}
+
+      <ChatPanel
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        status={aiStatus}
+      />
+
+      {organizeOpen && (
+        <OrganizeDialog
+          onClose={() => setOrganizeOpen(false)}
+          onApplied={() => {
+            fetchDocuments(search || undefined);
+            fetchFolders();
+          }}
+        />
       )}
     </div>
   );

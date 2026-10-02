@@ -5,6 +5,7 @@ export interface Document {
   title: string;
   content: any;
   ownerId: string;
+  folderId?: string | null;
   accessRole?: "OWNER" | "EDITOR" | "VIEWER";
   createdAt: string;
   updatedAt: string;
@@ -102,5 +103,10 @@ export const getDocumentPermissions = async (id: string) => {
 
 export const getSharedDocuments = async () => {
     const response = await api.get("/documents/shared");
+    return response.data;
+};
+
+export const moveDocumentToFolder = async (id: string, folderId: string | null) => {
+    const response = await api.patch(`/documents/${id}/folder`, { folderId });
     return response.data;
 };

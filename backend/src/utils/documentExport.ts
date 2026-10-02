@@ -32,7 +32,11 @@ export const extractTextFromTiptap = (node: any): string => {
 
 function xmlElementToText(element: Y.XmlElement | Y.XmlText): string {
     if (element instanceof Y.XmlText) {
-        return element.toString();
+        // toString() would wrap formatted runs in tags like <bold>; we want plain text
+        return element
+            .toDelta()
+            .map((op: { insert?: unknown }) => (typeof op.insert === "string" ? op.insert : ""))
+            .join("");
     }
 
     let text = "";
@@ -40,24 +44,27 @@ function xmlElementToText(element: Y.XmlElement | Y.XmlText): string {
         text += xmlElementToText(child);
     });
 
-    const tagName = (element as Y.XmlElement & { tagName: string }).tagName;
-    if (["paragraph", "heading", "listItem"].includes(tagName)) {
+    if (["paragraph", "heading", "listItem", "codeBlock"].includes(element.nodeName)) {
         text += "\n";
     }
 
     return text;
 }
 
+export const extractTextFromYDoc = (ydoc: Y.Doc): string => {
+    const fragment = ydoc.getXmlFragment("tiptap");
+    let text = "";
+    fragment.forEach((child) => {
+        text += xmlElementToText(child);
+    });
+    return text;
+};
+
 export const extractTextFromYDocState = (ydocState: Buffer): string => {
     const ydoc = new Y.Doc();
     try {
         Y.applyUpdate(ydoc, new Uint8Array(ydocState));
-        const fragment = ydoc.getXmlFragment("tiptap");
-        let text = "";
-        fragment.forEach((child) => {
-            text += xmlElementToText(child);
-        });
-        return text;
+        return extractTextFromYDoc(ydoc);
     } finally {
         ydoc.destroy();
     }
