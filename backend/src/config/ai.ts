@@ -20,9 +20,12 @@ export const isChatEnabled = () => Boolean(process.env.LLM_API_KEY);
 // Without a Voyage key, chat still works using keyword (full-text) retrieval.
 export const isEmbeddingEnabled = () => Boolean(process.env.VOYAGE_API_KEY);
 
-// Optional: TypeSafe assigns documents to folders with a calibrated confidence.
-// Without it, the LLM's own grouping is used.
-export const isTypeSafeEnabled = () => Boolean(process.env.TYPESAFE_API_KEY);
+// Optional: Sarvam Prism assigns documents to folders with a calibrated probability.
+// Without it, the LLM's own grouping is used. Falls back to LLM_API_KEY when the LLM is Sarvam's.
+export const PRISM_API_KEY = () =>
+    process.env.SARVAM_API_KEY ||
+    (LLM_BASE_URL.includes("sarvam.ai") ? process.env.LLM_API_KEY : undefined);
+export const isPrismEnabled = () => Boolean(PRISM_API_KEY());
 
 export const getLLM = (): OpenAI => {
     if (!llmClient) {

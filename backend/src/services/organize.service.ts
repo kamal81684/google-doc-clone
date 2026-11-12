@@ -1,16 +1,18 @@
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
-import { getLLM, isTypeSafeEnabled, LLM_ORGANIZE_MODEL, maxTokensParam, reasoningParams } from "../config/ai";
+import { getLLM, isPrismEnabled, LLM_ORGANIZE_MODEL, PRISM_API_KEY, maxTokensParam, reasoningParams } from "../config/ai";
 import { getDocumentText } from "./indexing.service";
 
 const MAX_DOCS_PER_RUN = 200;
 const EXCERPT_LENGTH = 400;
-const TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone";
-const TYPESAFE_CONCURRENCY = 5;
-// Below this, a document is left for the user to file by hand.
-// Starting point — tune it against real users' documents.
-const MIN_ASSIGN_CONFIDENCE = 0.5;
+const PRISM_URL = "https://api.sarvam.ai/v2/systemone";
+const PRISM_MODEL = "sarvam-prism";
+const PRISM_CONCURRENCY = 5;
+// Prism's probabilities are calibrated, so this is roughly "right at least half the time".
+// Below it, a document is left for the user to file by hand. The user reviews the plan before
+// anything moves, so this sits lower than an unattended threshold (Sarvam suggests 0.9 there).
+const MIN_ASSIGN_PROBABILITY = 0.5;
 const NO_FOLDER_OPTION = "__none__";
 
 export interface ProposedDocument {
@@ -30,7 +32,7 @@ export interface OrganizeProposal {
     folders: ProposedFolder[];
     unassigned: ProposedDocument[];
     remaining: number;
-    assignedBy: "typesafe" | "llm";
+    assignedBy: "prism" | "llm";
 }
 
 const ProposalSchema = z.object({
@@ -133,31 +135,31 @@ const proposeFolders = async (
     return parsed.data.folders;
 };
 
-interface TypeSafeChoiceAnswer {
+interface PrismChoiceAnswer {
     type: "choice";
     choice: string;
-    confidence: number;
+    probabilities: Record<string, number>;
 }
 
-/** Step 2 (optional): TypeSafe picks each document's folder with a calibrated confidence. */
-const assignWithTypeSafe = async (
+/** Step 2 (optional): Sarvam Prism picks each document's folder with a calibrated probability. */
+const assignWithPrism = async (
     doc: UnfiledDoc,
     folders: { name: string; description: string }[]
 ) => {
     const criteria: Record<string, string> = {};
     folders.forEach((f, i) => {
-        criteria[`folder_${i}`] = `${f.name}: ${f.description}`;
+        criteria[`folder_${i}`] = `The document is about ${f.name}: ${f.description}`;
     });
-    criteria[NO_FOLDER_OPTION] = "None of these folders is a good fit for this document";
+    criteria[NO_FOLDER_OPTION] = "None of the other folders is a good fit for this document";
 
-    const response = await fetch(TYPESAFE_URL, {
+    const response = await fetch(PRISM_URL, {
         method: "POST",
         headers: {
-            Authorization: `Bearer ${process.env.TYPESAFE_API_KEY}`,
+            "api-subscription-key": PRISM_API_KEY() as string,
             "Content-Type": "application/json",
         },
         body: JSON.stringify({
-            model: "jev-latest",
+            model: PRISM_MODEL,
             state: { document: { title: doc.title, beginning: doc.excerpt } },
             questions: {
                 folder: {
@@ -171,15 +173,18 @@ const assignWithTypeSafe = async (
     });
 
     if (!response.ok) {
-        throw new Error(`TypeSafe request failed (${response.status})`);
+        const body = await response.text().catch(() => "");
+        throw new Error(`Sarvam Prism request failed (${response.status}) ${body.slice(0, 200)}`);
     }
 
-    const json = (await response.json()) as { answers: { folder: TypeSafeChoiceAnswer } };
+    const json = (await response.json()) as { answers: { folder: PrismChoiceAnswer } };
     const answer = json.answers.folder;
     const folderIndex =
         answer.choice === NO_FOLDER_OPTION ? null : Number(answer.choice.replace("folder_", ""));
 
-    return { folderIndex, confidence: answer.confidence };
+    // Sarvam's calibration figures refer to the top option's probability, not the rescaled
+    // `confidence` field, so that's what the threshold (and the UI) uses
+    return { folderIndex, confidence: answer.probabilities[answer.choice] ?? 0 };
 };
 
 const mapWithConcurrency = async <T, R>(
@@ -241,22 +246,22 @@ export const proposeOrganization = async (userId: string): Promise<OrganizePropo
     const unassigned: ProposedDocument[] = [];
     let assignedBy: OrganizeProposal["assignedBy"] = "llm";
 
-    let typesafeResults: { folderIndex: number | null; confidence: number }[] | null = null;
-    if (isTypeSafeEnabled() && folders.length > 0) {
+    let prismResults: { folderIndex: number | null; confidence: number }[] | null = null;
+    if (isPrismEnabled() && folders.length > 0) {
         try {
-            typesafeResults = await mapWithConcurrency(unfiled, TYPESAFE_CONCURRENCY, (doc) =>
-                assignWithTypeSafe(doc, folders)
+            prismResults = await mapWithConcurrency(unfiled, PRISM_CONCURRENCY, (doc) =>
+                assignWithPrism(doc, folders)
             );
-            assignedBy = "typesafe";
+            assignedBy = "prism";
         } catch (error: any) {
-            console.error("TypeSafe assignment failed, using the LLM's grouping:", error.message);
+            console.error("Sarvam Prism assignment failed, using the LLM's grouping:", error.message);
         }
     }
 
     unfiled.forEach((doc, i) => {
-        const result = typesafeResults?.[i];
+        const result = prismResults?.[i];
         const folderIndex = result
-            ? result.confidence >= MIN_ASSIGN_CONFIDENCE
+            ? result.confidence >= MIN_ASSIGN_PROBABILITY
                 ? result.folderIndex
                 : null
             : llmAssignment.get(doc.key) ?? null;

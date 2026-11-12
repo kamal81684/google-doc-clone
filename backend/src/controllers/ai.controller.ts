@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { z } from "zod";
-import { isChatEnabled, isEmbeddingEnabled, isTypeSafeEnabled } from "../config/ai";
+import { isChatEnabled, isEmbeddingEnabled, isPrismEnabled } from "../config/ai";
 import { ChatSource, streamChat } from "../services/chat.service";
 import {
     createConversation,
@@ -44,7 +44,7 @@ export const getAiStatus = async (req: Request, res: Response) => {
         success: true,
         chatEnabled: isChatEnabled(),
         semanticSearch: isEmbeddingEnabled(),
-        smartFiling: isTypeSafeEnabled(),
+        smartFiling: isPrismEnabled(),
     });
 };
 

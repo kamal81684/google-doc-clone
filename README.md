@@ -154,7 +154,7 @@ LLM_CHAT_REASONING=""               # optional: off (default, fastest first toke
 LLM_MAX_TOKENS_PARAM=""             # optional: max_tokens | max_completion_tokens (auto: max_tokens for Sarvam)
 LLM_MAX_OUTPUT_TOKENS=""            # optional: cap output tokens to your plan's limit
 VOYAGE_API_KEY="pa-..."             # optional: semantic (vector) search; without it chat uses keyword search
-TYPESAFE_API_KEY="..."              # optional: confidence-scored folder assignment when organizing
+SARVAM_API_KEY="..."                # optional: Sarvam Prism, confidence-scored folder assignment when organizing
 
 # Share notifications ("Notify people" in the share dialog) — leave SMTP_HOST empty to disable
 SMTP_HOST="smtp.gmail.com"
@@ -206,7 +206,7 @@ The application uses PostgreSQL with Prisma ORM. The schema consists of three mo
 1. **Indexing** — When the last editor leaves a document (or its title changes), the backend extracts its text, splits it into ~1,200-character chunks, embeds them, and stores them in `DocumentChunk`. Opening the dashboard or sending a chat message also catches up any documents that changed since they were last indexed. Unchanged documents are skipped by content hash.
 2. **Retrieval** — A question is embedded and matched against chunks from every document the user can access (owned + shared), using cosine similarity in pgvector.
 3. **Answering** — The LLM (`LLM_CHAT_MODEL`, by default `openai/gpt-oss-120b` on Groq) gets the best-matching excerpts plus a list of the user's documents (titles, folders, dates), and streams back an answer that cites excerpts as `[n]`. The UI turns citations into links to the documents.
-4. **Organize with AI** — The LLM reads the titles and openings of unfiled documents and proposes folders (reusing existing ones where they fit). With `TYPESAFE_API_KEY` set, each document is then assigned to a folder by TypeSafe with a confidence score, and low-confidence ones are left unfiled. Nothing moves until the user reviews and applies the plan.
+4. **Organize with AI** — The LLM reads the titles and openings of unfiled documents and proposes folders (reusing existing ones where they fit). With `SARVAM_API_KEY` set, each document is then assigned to a folder by [Sarvam Prism](https://docs.sarvam.ai/api/token-factory/models/sarvam-prism) with a calibrated probability, and low-confidence ones are left unfiled. Nothing moves until the user reviews and applies the plan.
 
 > Note: the HNSW index is created in raw SQL because Prisma can't express it. If a future `prisma migrate dev` proposes `DROP INDEX "DocumentChunk_embedding_idx"`, remove that line from the generated migration.
 

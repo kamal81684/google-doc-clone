@@ -63,7 +63,7 @@ export interface OrganizeProposal {
   }[];
   unassigned: ProposedDocument[];
   remaining: number;
-  assignedBy: "typesafe" | "llm";
+  assignedBy: "prism" | "llm";
 }
 
 export const getAiStatus = async (): Promise<AiStatus & { success: boolean }> => {
