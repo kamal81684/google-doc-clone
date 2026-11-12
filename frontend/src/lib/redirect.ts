@@ -9,3 +9,11 @@ export const getPostLoginPath = () => {
 /** Login URL that returns to the current page afterwards. */
 export const loginUrlForCurrentPage = () =>
   `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+
+/** The email-verification page, carrying the post-login destination along. */
+export const verifyEmailUrl = (email: string) => {
+  const next = getPostLoginPath();
+  const params = new URLSearchParams({ email });
+  if (next !== "/dashboard") params.set("next", next);
+  return `/verify-email?${params}`;
+};

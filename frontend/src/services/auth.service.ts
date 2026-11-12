@@ -13,6 +13,13 @@ export interface AuthResponse {
   message?: string;
   user?: User;
   token?: string;
+  /** Set when an action is blocked for a specific reason, e.g. EMAIL_NOT_VERIFIED */
+  code?: string;
+  /** register: a code was emailed and must be entered before signing in */
+  requiresVerification?: boolean;
+  email?: string;
+  /** resend-code: seconds before another code can be requested */
+  retryAfter?: number;
 }
 
 export const register = async (
@@ -36,6 +43,19 @@ export const login = async (
     email,
     password,
   });
+  return response.data;
+};
+
+export const verifyEmail = async (
+  email: string,
+  code: string
+): Promise<AuthResponse> => {
+  const response = await api.post("/auth/verify-email", { email, code });
+  return response.data;
+};
+
+export const resendVerificationCode = async (email: string): Promise<AuthResponse> => {
+  const response = await api.post("/auth/resend-code", { email });
   return response.data;
 };
 

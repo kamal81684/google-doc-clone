@@ -16,6 +16,7 @@ declare module "lucide-react" {
   export const AlignRight: Icon;
   export const AlignJustify: Icon;
   export const Link2: Icon;
+  export const Mail: Icon;
   export const Code: Icon;
   export const Undo2: Icon;
   export const Redo2: Icon;

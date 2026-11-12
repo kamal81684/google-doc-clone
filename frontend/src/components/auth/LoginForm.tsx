@@ -18,7 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { login } from "@/services/auth.service";
-import { getPostLoginPath } from "@/lib/redirect";
+import { getPostLoginPath, verifyEmailUrl } from "@/lib/redirect";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -50,6 +50,11 @@ export function LoginForm() {
         toast.error(response.message || "Login failed");
       }
     } catch (error: any) {
+      if (error.response?.data?.code === "EMAIL_NOT_VERIFIED") {
+        toast(error.response.data.message, { icon: "✉️", duration: 5000 });
+        router.push(verifyEmailUrl(data.email));
+        return;
+      }
       toast.error(
         error.response?.data?.message || "Something went wrong"
       );

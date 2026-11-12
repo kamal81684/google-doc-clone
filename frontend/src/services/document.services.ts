@@ -22,6 +22,12 @@ export interface SharedUser {
   role: "VIEWER" | "EDITOR";
 }
 
+/** Shared with an email that has no account yet; becomes a SharedUser when they sign up */
+export interface PendingInvite {
+  email: string;
+  role: "VIEWER" | "EDITOR";
+}
+
 export const createDocument = async () => {
     const response = await api.post("/documents");
     return response.data;

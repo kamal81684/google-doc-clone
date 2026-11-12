@@ -13,15 +13,16 @@ export const shareDocument = async (
 
         const ownerId = (req as any).user.id;
 
-        const { permission, notified } = await shareDocumentService(id, ownerId, email, role, {
+        const { permission, invited, notified } = await shareDocumentService(id, ownerId, email, role, {
             notify: notify !== false,
             message: typeof message === "string" ? message : undefined,
         });
 
         return res.status(200).json({
             success: true,
-            message: "Document shared successfully",
+            message: invited ? "Invitation sent" : "Document shared successfully",
             document: permission,
+            invited,
             notified,
         });
 
@@ -41,12 +42,13 @@ export const getSharedUsers = async (
         const id = req.params.id as string;
         const ownerId = (req as any).user.id;
 
-        const { linkAccess, permissions } = await getDocumentPermissions(id, ownerId);
+        const { linkAccess, permissions, pendingInvites } = await getDocumentPermissions(id, ownerId);
 
         return res.status(200).json({
             success: true,
             linkAccess,
             permissions,
+            pendingInvites,
             // Lets the share dialog show the "Notify people" option only when email can be sent
             notificationsEnabled: isMailEnabled(),
         });

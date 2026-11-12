@@ -38,6 +38,38 @@ model DocumentPermission {
     @@unique([documentId, userId])
 }
 
+// The pending sign-up code for an unverified user; deleted once verified
+model EmailVerification {
+    id     String @id @default(cuid())
+    userId String @unique
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    // HMAC of the 6-digit code, never the code itself
+    codeHash  String
+    expiresAt DateTime
+    attempts  Int      @default(0)
+    sentAt    DateTime @default(now())
+}
+
+// A share with an email that has no account yet. Becomes a DocumentPermission when someone
+// registers (or signs in with Google) with that email.
+model DocumentInvite {
+    id         String @id @default(cuid())
+
+    documentId String
+    document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+    // Stored lowercased
+    email String
+    role  PermissionRole
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([documentId, email])
+    @@index([email])
+}
+
 model User {
   id        String   @id @default(cuid())
   name      String
@@ -45,6 +77,9 @@ model User {
   password  String?
   googleId  String?  @unique
   avatar    String?
+  // Set once they enter the emailed code (or sign in with Google); login requires it
+  emailVerified     Boolean @default(false)
+  emailVerification EmailVerification?
   documents Document[]
   folders   Folder[]
 
@@ -71,6 +106,7 @@ model Document {
 
   updatedAt DateTime @updatedAt
   permissions DocumentPermission[]
+  invites     DocumentInvite[]
 
   // RESTRICTED = only the owner and people it's shared with; VIEWER/EDITOR = anyone with the link,
   // including visitors who aren't signed in

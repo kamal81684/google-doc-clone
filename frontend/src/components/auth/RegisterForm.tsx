@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { register } from "@/services/auth.service";
+import { getPostLoginPath, verifyEmailUrl } from "@/lib/redirect";
 
 const registerSchema = z
   .object({
@@ -47,13 +48,23 @@ export function RegisterForm() {
     },
   });
 
+  // Invite emails link to /register?email=...&next=/documents/<id>
+  useEffect(() => {
+    const invitedEmail = new URLSearchParams(window.location.search).get("email");
+    if (invitedEmail) form.setValue("email", invitedEmail);
+  }, [form]);
+
   const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true);
     try {
       const response = await register(data.name, data.email, data.password);
-      if (response.success) {
+      if (response.success && response.requiresVerification) {
+        toast.success("We sent a 6-digit code to your email");
+        router.push(verifyEmailUrl(response.email || data.email));
+      } else if (response.success) {
         toast.success("Account created successfully! Please login.");
-        router.push("/login");
+        const next = getPostLoginPath();
+        router.push(next === "/dashboard" ? "/login" : `/login?next=${encodeURIComponent(next)}`);
       } else {
         toast.error(response.message || "Registration failed");
       }

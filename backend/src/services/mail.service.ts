@@ -17,6 +17,8 @@ interface ShareNotification {
     documentTitle: string;
     role: "VIEWER" | "EDITOR";
     message?: string | undefined;
+    /** No account yet: the button leads to sign-up, and the doc appears once they register */
+    invite?: boolean;
 }
 
 /**
@@ -31,21 +33,32 @@ const sendShareNotification = async ({
     documentTitle,
     role,
     message,
+    invite = false,
 }: ShareNotification): Promise<boolean> => {
     if (!isMailEnabled()) return false;
 
-    const url = `${APP_URL}/documents/${documentId}`;
+    const docPath = `/documents/${documentId}`;
+    const url = invite
+        ? `${APP_URL}/register?email=${encodeURIComponent(to)}&next=${encodeURIComponent(docPath)}`
+        : `${APP_URL}${docPath}`;
+    const cta = invite ? "Create account to open" : "Open";
     const verb = role === "EDITOR" ? "edit" : "view";
     const title = documentTitle || "Untitled Document";
     const note = message?.trim();
 
-    const subject = `Document shared with you: "${title}"`;
+    const subject = invite
+        ? `${sharerName} invited you to ${verb} "${title}"`
+        : `Document shared with you: "${title}"`;
+    const signUpHint = invite
+        ? `Create a free account with ${to} to open it. The document will be waiting for you.`
+        : null;
 
     const text = [
         `${sharerName} (${sharerEmail}) shared a document with you and invited you to ${verb} it.`,
         "",
         note ? `"${note}"\n` : null,
         title,
+        signUpHint,
         url,
     ]
         .filter((line) => line !== null)
@@ -65,7 +78,12 @@ const sendShareNotification = async ({
   <div style="border:1px solid #dadce0;border-radius:8px;padding:16px;margin:0 0 20px">
     <p style="margin:0;font-size:15px;font-weight:600">${escapeHtml(title)}</p>
   </div>
-  <a href="${url}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:600">Open</a>
+  ${
+      signUpHint
+          ? `<p style="margin:0 0 16px;font-size:14px;color:#3c4043">${escapeHtml(signUpHint)}</p>`
+          : ""
+  }
+  <a href="${url}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:600">${cta}</a>
   <p style="margin:24px 0 0;font-size:12px;color:#5f6368">
     You received this email because ${escapeHtml(sharerEmail)} shared a document with you.
   </p>
@@ -85,4 +103,41 @@ const sendShareNotification = async ({
     return true;
 };
 
-export { sendShareNotification };
+/** The sign-up verification code. Throws if sending fails so the caller can report it. */
+const sendVerificationCodeEmail = async ({
+    to,
+    name,
+    code,
+    expiresInMinutes,
+}: {
+    to: string;
+    name: string;
+    code: string;
+    expiresInMinutes: number;
+}) => {
+    const subject = `${code} is your verification code`;
+    const text = [
+        `Hi ${name},`,
+        "",
+        `Your verification code is: ${code}`,
+        "",
+        `Enter it to finish creating your account. It expires in ${expiresInMinutes} minutes.`,
+        "If you didn't sign up, you can ignore this email.",
+    ].join("\n");
+
+    const html = `
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#202124">
+  <p style="font-size:15px;margin:0 0 16px">Hi ${escapeHtml(name)},</p>
+  <p style="font-size:15px;margin:0 0 20px">Enter this code to finish creating your account:</p>
+  <div style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;padding:16px;background:#f1f3f4;border-radius:8px;margin:0 0 20px">${code}</div>
+  <p style="font-size:13px;color:#5f6368;margin:0">
+    It expires in ${expiresInMinutes} minutes. If you didn't sign up, you can ignore this email.
+  </p>
+</div>`;
+
+    const info = await getMailer().sendMail({ from: MAIL_FROM(), to, subject, text, html });
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    console.log(`Verification code sent to ${to}${previewUrl ? `, preview: ${previewUrl}` : ""}`);
+};
+
+export { sendShareNotification, sendVerificationCodeEmail };

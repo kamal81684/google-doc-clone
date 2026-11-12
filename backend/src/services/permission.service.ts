@@ -3,13 +3,25 @@ import { LinkAccess, PermissionRole } from "@prisma/client";
 import { isMailEnabled } from "../config/mailer";
 import { sendShareNotification } from "./mail.service";
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const shareDocumentService = async (
     documentId: string,
     ownerId: string,
-    email: string,
+    rawEmail: string,
     role: string,
     options: { notify?: boolean; message?: string | undefined } = {}
 ) => {
+    const email = String(rawEmail ?? "").trim().toLowerCase();
+
+    if (!EMAIL_PATTERN.test(email)) {
+        throw new Error("Enter a valid email address");
+    }
+
+    if (!Object.values(PermissionRole).includes(role as PermissionRole)) {
+        throw new Error("Invalid role. Must be VIEWER or EDITOR");
+    }
+
     const document = await prisma.document.findUnique({
         where: { id: documentId },
         include: { owner: { select: { name: true, email: true } } },
@@ -23,20 +35,40 @@ const shareDocumentService = async (
         throw new Error("You are not the owner of this document");
     }
 
-    const userToShare = await prisma.user.findUnique({
-        where: { email },
+    const userToShare = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
     });
 
-    if (!userToShare) {
-        throw new Error("User not found with this email");
-    }
-
-    if (userToShare.id === ownerId) {
+    if (userToShare?.id === ownerId) {
         throw new Error("You cannot share document with yourself");
     }
 
-    if (!Object.values(PermissionRole).includes(role as PermissionRole)) {
-        throw new Error("Invalid role. Must be VIEWER or EDITOR");
+    // No account yet: keep a pending invite (claimed when they sign up) and email them to join
+    if (!userToShare) {
+        const existingInvite = await prisma.documentInvite.findUnique({
+            where: { documentId_email: { documentId, email } },
+            select: { role: true },
+        });
+
+        const invite = await prisma.documentInvite.upsert({
+            where: { documentId_email: { documentId, email } },
+            update: { role: role as PermissionRole },
+            create: { documentId, email, role: role as PermissionRole },
+        });
+
+        // Unlike existing users, an invitee only learns about the doc from this email,
+        // so it goes out even with "Notify people" off (as in Google Docs)
+        const notified =
+            existingInvite?.role !== invite.role &&
+            (await notify({
+                to: email,
+                document,
+                role: invite.role,
+                message: options.message,
+                invite: true,
+            }));
+
+        return { permission: null, invite, invited: true, notified };
     }
 
     const existing = await prisma.documentPermission.findUnique({
@@ -62,26 +94,73 @@ const shareDocumentService = async (
     });
 
     // Like Google Docs: email only when access is new or the role changed, never re-send for a no-op
-    const accessChanged = existing?.role !== permission.role;
-    let notified = false;
-    if (options.notify !== false && accessChanged && isMailEnabled()) {
-        try {
-            notified = await sendShareNotification({
-                to: userToShare.email,
-                sharerName: document.owner.name,
-                sharerEmail: document.owner.email,
-                documentId,
-                documentTitle: document.title,
-                role: permission.role,
-                message: options.message?.slice(0, 2000),
-            });
-        } catch (error) {
-            // The share itself succeeded; a mail failure shouldn't undo it
-            console.error("Share notification email failed:", error);
-        }
-    }
+    const notified =
+        options.notify !== false &&
+        existing?.role !== permission.role &&
+        (await notify({
+            to: userToShare.email,
+            document,
+            role: permission.role,
+            message: options.message,
+            invite: false,
+        }));
 
-    return { permission, notified };
+    return { permission, invite: null, invited: false, notified };
+};
+
+const notify = async ({
+    to,
+    document,
+    role,
+    message,
+    invite,
+}: {
+    to: string;
+    document: { id: string; title: string; owner: { name: string; email: string } };
+    role: PermissionRole;
+    message: string | undefined;
+    invite: boolean;
+}) => {
+    if (!isMailEnabled()) return false;
+    try {
+        return await sendShareNotification({
+            to,
+            sharerName: document.owner.name,
+            sharerEmail: document.owner.email,
+            documentId: document.id,
+            documentTitle: document.title,
+            role,
+            message: message?.slice(0, 2000),
+            invite,
+        });
+    } catch (error) {
+        // The share itself succeeded; a mail failure shouldn't undo it
+        console.error("Share notification email failed:", error);
+        return false;
+    }
+};
+
+/**
+ * Turns pending invites for this email into real permissions. Called after sign-up and
+ * Google sign-in, so docs shared before the account existed show up in "Shared with me".
+ */
+const claimDocumentInvites = async (userId: string, email: string) => {
+    const invites = await prisma.documentInvite.findMany({
+        where: { email: email.trim().toLowerCase() },
+        include: { document: { select: { ownerId: true } } },
+    });
+    if (invites.length === 0) return 0;
+
+    await prisma.$transaction([
+        prisma.documentPermission.createMany({
+            data: invites
+                .filter((invite) => invite.document.ownerId !== userId)
+                .map((invite) => ({ documentId: invite.documentId, userId, role: invite.role })),
+            skipDuplicates: true,
+        }),
+        prisma.documentInvite.deleteMany({ where: { id: { in: invites.map((i) => i.id) } } }),
+    ]);
+    return invites.length;
 };
 
 export type AccessRole = "OWNER" | "EDITOR" | "VIEWER";
@@ -188,8 +267,15 @@ const getDocumentPermissions = async (
         },
     });
 
+    const invites = await prisma.documentInvite.findMany({
+        where: { documentId },
+        orderBy: { createdAt: "asc" },
+        select: { email: true, role: true },
+    });
+
     return {
         linkAccess: document.linkAccess,
+        pendingInvites: invites,
         permissions: permissions.map((p) => ({
             userId: p.user.id,
             name: p.user.name,
@@ -199,4 +285,4 @@ const getDocumentPermissions = async (
     };
 };
 
-export { shareDocumentService, checkDocumentAccess, getDocumentPermissions, setLinkAccessService };
+export { shareDocumentService, claimDocumentInvites, checkDocumentAccess, getDocumentPermissions, setLinkAccessService };

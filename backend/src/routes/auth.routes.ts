@@ -5,6 +5,8 @@ import {
     login,
     logout,
     register,
+    resendOtp,
+    verifyEmailOtp,
 } from "../controllers/auth.controllers";
 
 import { isAuthenticated } from "../middleware/auth.middleware";
@@ -15,6 +17,10 @@ const router = Router();
 router.post("/register", register);
 
 router.post("/login", login);
+
+router.post("/verify-email", verifyEmailOtp);
+
+router.post("/resend-code", resendOtp);
 
 router.post("/google", googleLogin);
 

@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { X, Check, Globe, Lock, Link2 } from "lucide-react";
+import { X, Check, Globe, Lock, Link2, Mail } from "lucide-react";
 import {
   shareDocument,
   getDocumentPermissions,
   setLinkAccess,
   LinkAccess,
+  PendingInvite,
   SharedUser,
 } from "@/services/document.services";
 import {
@@ -45,6 +46,7 @@ export default function ShareDialog({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"VIEWER" | "EDITOR">("VIEWER");
   const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(false);
   const [linkAccess, setLinkAccessState] = useState<LinkAccess>("RESTRICTED");
   const [savingLinkAccess, setSavingLinkAccess] = useState(false);
@@ -56,6 +58,7 @@ export default function ShareDialog({
     try {
       const res = await getDocumentPermissions(documentId);
       setSharedUsers(res.permissions);
+      setPendingInvites(res.pendingInvites ?? []);
       setLinkAccessState(res.linkAccess ?? "RESTRICTED");
       setNotificationsEnabled(Boolean(res.notificationsEnabled));
     } catch (err) {
@@ -90,11 +93,21 @@ export default function ShareDialog({
         notify: sendEmail,
         ...(sendEmail && message.trim() ? { message: message.trim() } : {}),
       });
-      toast.success(
-        res.notified
-          ? `Shared with ${email.trim()} and notified by email`
-          : `Shared with ${email.trim()}`
-      );
+      if (res.invited) {
+        // No account yet: they get access once they sign up with this email
+        toast.success(
+          res.notified
+            ? `${email.trim()} isn't on Docs yet. We emailed them an invite to sign up.`
+            : `${email.trim()} isn't on Docs yet. They'll get access when they sign up with this email.`,
+          { duration: 5000 }
+        );
+      } else {
+        toast.success(
+          res.notified
+            ? `Shared with ${email.trim()} and notified by email`
+            : `Shared with ${email.trim()}`
+        );
+      }
       setEmail("");
       setRole("VIEWER");
       setMessage("");
@@ -230,7 +243,7 @@ export default function ShareDialog({
             People with access
           </h3>
           <div className="max-h-56 overflow-y-auto pb-2">
-            {sharedUsers.length === 0 ? (
+            {sharedUsers.length === 0 && pendingInvites.length === 0 ? (
               <p className="py-3 text-sm text-gray-400">
                 {linkAccess === "RESTRICTED"
                   ? "Only you have access."
@@ -262,6 +275,24 @@ export default function ShareDialog({
                 </div>
               ))
             )}
+            {pendingInvites.map((invite) => (
+              <div key={invite.email} className="flex items-center gap-3 py-2">
+                <span className="gd-avatar" style={{ background: "#9ca3af" }}>
+                  <Mail size={14} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-gray-900">
+                    {invite.email}
+                  </p>
+                  <p className="truncate text-xs text-amber-600">
+                    Invited, hasn&apos;t signed up yet
+                  </p>
+                </div>
+                <span className="text-xs text-gray-400">
+                  {invite.role === "EDITOR" ? "Editor" : "Viewer"}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
