@@ -48,12 +48,16 @@ export default function ShareDialog({
   const [loading, setLoading] = useState(false);
   const [linkAccess, setLinkAccessState] = useState<LinkAccess>("RESTRICTED");
   const [savingLinkAccess, setSavingLinkAccess] = useState(false);
+  const [notify, setNotify] = useState(true);
+  const [message, setMessage] = useState("");
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   const fetchPermissions = useCallback(async () => {
     try {
       const res = await getDocumentPermissions(documentId);
       setSharedUsers(res.permissions);
       setLinkAccessState(res.linkAccess ?? "RESTRICTED");
+      setNotificationsEnabled(Boolean(res.notificationsEnabled));
     } catch (err) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data
@@ -67,6 +71,8 @@ export default function ShareDialog({
       fetchPermissions();
       setEmail("");
       setRole("VIEWER");
+      setNotify(true);
+      setMessage("");
     }
   }, [open, fetchPermissions]);
 
@@ -77,10 +83,21 @@ export default function ShareDialog({
     }
     setLoading(true);
     try {
-      await shareDocument(documentId, { email: email.trim(), role });
-      toast.success(`Shared with ${email.trim()}`);
+      const sendEmail = notificationsEnabled && notify;
+      const res = await shareDocument(documentId, {
+        email: email.trim(),
+        role,
+        notify: sendEmail,
+        ...(sendEmail && message.trim() ? { message: message.trim() } : {}),
+      });
+      toast.success(
+        res.notified
+          ? `Shared with ${email.trim()} and notified by email`
+          : `Shared with ${email.trim()}`
+      );
       setEmail("");
       setRole("VIEWER");
+      setMessage("");
       fetchPermissions();
     } catch (err) {
       const message =
@@ -181,6 +198,30 @@ export default function ShareDialog({
               {loading ? "Sharing..." : "Share"}
             </button>
           </div>
+
+          {notificationsEnabled && email.trim() && (
+            <div className="mt-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={notify}
+                  onChange={(e) => setNotify(e.target.checked)}
+                  className="size-4 accent-indigo-600"
+                />
+                Notify people
+              </label>
+              {notify && (
+                <textarea
+                  placeholder="Message (optional)"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  className="mt-2 w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:bg-white"
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {/* People with access */}

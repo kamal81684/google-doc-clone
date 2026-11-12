@@ -94,6 +94,9 @@ export const shareDocument = async (
     data: {
         email: string;
         role: "VIEWER" | "EDITOR";
+        /** Email the person about the share (only sent if the server has SMTP configured) */
+        notify?: boolean;
+        message?: string;
     }
 ) => {
     const response = await api.post(`/documents/${id}/share`, data);

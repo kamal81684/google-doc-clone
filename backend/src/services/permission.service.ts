@@ -1,14 +1,18 @@
 import prisma from "../config/prisma";
 import { LinkAccess, PermissionRole } from "@prisma/client";
+import { isMailEnabled } from "../config/mailer";
+import { sendShareNotification } from "./mail.service";
 
 const shareDocumentService = async (
     documentId: string,
     ownerId: string,
     email: string,
-    role: string
+    role: string,
+    options: { notify?: boolean; message?: string | undefined } = {}
 ) => {
     const document = await prisma.document.findUnique({
         where: { id: documentId },
+        include: { owner: { select: { name: true, email: true } } },
     });
 
     if (!document) {
@@ -35,6 +39,11 @@ const shareDocumentService = async (
         throw new Error("Invalid role. Must be VIEWER or EDITOR");
     }
 
+    const existing = await prisma.documentPermission.findUnique({
+        where: { documentId_userId: { documentId, userId: userToShare.id } },
+        select: { role: true },
+    });
+
     const permission = await prisma.documentPermission.upsert({
         where: {
             documentId_userId: {
@@ -52,7 +61,27 @@ const shareDocumentService = async (
         },
     });
 
-    return permission;
+    // Like Google Docs: email only when access is new or the role changed, never re-send for a no-op
+    const accessChanged = existing?.role !== permission.role;
+    let notified = false;
+    if (options.notify !== false && accessChanged && isMailEnabled()) {
+        try {
+            notified = await sendShareNotification({
+                to: userToShare.email,
+                sharerName: document.owner.name,
+                sharerEmail: document.owner.email,
+                documentId,
+                documentTitle: document.title,
+                role: permission.role,
+                message: options.message?.slice(0, 2000),
+            });
+        } catch (error) {
+            // The share itself succeeded; a mail failure shouldn't undo it
+            console.error("Share notification email failed:", error);
+        }
+    }
+
+    return { permission, notified };
 };
 
 export type AccessRole = "OWNER" | "EDITOR" | "VIEWER";

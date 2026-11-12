@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { isMailEnabled } from "../config/mailer";
 import { shareDocumentService, getDocumentPermissions, setLinkAccessService } from "../services/permission.service";
 
 export const shareDocument = async (
@@ -8,16 +9,20 @@ export const shareDocument = async (
     try {
         const id = req.params.id as string;
 
-        const { email, role } = req.body;
+        const { email, role, notify, message } = req.body;
 
         const ownerId = (req as any).user.id;
 
-        const document = await shareDocumentService(id, ownerId, email, role);
+        const { permission, notified } = await shareDocumentService(id, ownerId, email, role, {
+            notify: notify !== false,
+            message: typeof message === "string" ? message : undefined,
+        });
 
         return res.status(200).json({
             success: true,
             message: "Document shared successfully",
-            document,
+            document: permission,
+            notified,
         });
 
     } catch (error: any) {
@@ -42,6 +47,8 @@ export const getSharedUsers = async (
             success: true,
             linkAccess,
             permissions,
+            // Lets the share dialog show the "Notify people" option only when email can be sent
+            notificationsEnabled: isMailEnabled(),
         });
 
     } catch (error: any) {

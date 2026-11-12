@@ -155,6 +155,14 @@ LLM_MAX_TOKENS_PARAM=""             # optional: max_tokens | max_completion_toke
 LLM_MAX_OUTPUT_TOKENS=""            # optional: cap output tokens to your plan's limit
 VOYAGE_API_KEY="pa-..."             # optional: semantic (vector) search; without it chat uses keyword search
 TYPESAFE_API_KEY="..."              # optional: confidence-scored folder assignment when organizing
+
+# Share notifications ("Notify people" in the share dialog) — leave SMTP_HOST empty to disable
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="465"                     # 465 = implicit TLS, 587 = STARTTLS
+SMTP_USER="you@gmail.com"
+SMTP_PASS="..."                     # for Gmail, an App Password (not your account password)
+SMTP_FROM="Docs <you@gmail.com>"    # optional: defaults to SMTP_USER
+APP_URL="http://localhost:3000"     # frontend URL used for "Open" links in emails
 ```
 
 The AI migration enables the `vector` extension, so PostgreSQL needs [pgvector](https://github.com/pgvector/pgvector) installed (0.8+, e.g. `brew install pgvector`).
